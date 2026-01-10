@@ -58,6 +58,25 @@ std::wstring escape_xml(const std::wstring& text) {
     return result;
 }
 
+// Parse progress data in format "title:value:status"
+bool parse_progress_data(const std::wstring& data, std::wstring& title, std::wstring& value, std::wstring& status) {
+    size_t firstColon = data.find(L':');
+    size_t secondColon = data.rfind(L':');
+    
+    // Validate format: must have exactly 2 colons in the right order
+    if (firstColon == std::wstring::npos || secondColon == std::wstring::npos || 
+        firstColon >= secondColon || firstColon == 0 || secondColon == data.length() - 1) {
+        return false;
+    }
+    
+    title = data.substr(0, firstColon);
+    value = data.substr(firstColon + 1, secondColon - firstColon - 1);
+    status = data.substr(secondColon + 1);
+    
+    // Validate that components are not empty
+    return !title.empty() && !value.empty() && !status.empty();
+}
+
 // Create a Start Menu shortcut with our AppUserModelId
 bool create_shortcut() {
     wchar_t exePath[MAX_PATH];
@@ -317,11 +336,16 @@ int wmain(int argc, wchar_t* argv[]) {
             if (heroImage.find(L"://") == std::wstring::npos) {
                 // Convert to absolute path and file URI
                 wchar_t absolutePath[MAX_PATH];
-                GetFullPathNameW(heroImage.c_str(), MAX_PATH, absolutePath, nullptr);
-                imageUri = L"file:///" + std::wstring(absolutePath);
-                // Replace backslashes with forward slashes for URI
-                for (auto& ch : imageUri) {
-                    if (ch == L'\\') ch = L'/';
+                DWORD result = GetFullPathNameW(heroImage.c_str(), MAX_PATH, absolutePath, nullptr);
+                if (result == 0 || result >= MAX_PATH) {
+                    std::wcerr << L"Warning: Invalid or too long image path, using as-is.\n";
+                    imageUri = heroImage;
+                } else {
+                    imageUri = L"file:///" + std::wstring(absolutePath);
+                    // Replace backslashes with forward slashes for URI
+                    for (auto& ch : imageUri) {
+                        if (ch == L'\\') ch = L'/';
+                    }
                 }
             }
             xml += L"<image placement=\"hero\" src=\"" + escape_xml(imageUri) + L"\"/>";
@@ -334,23 +358,11 @@ int wmain(int argc, wchar_t* argv[]) {
         
         // Add progress bar if specified
         if (!progressData.empty()) {
-            // Parse progress data: "title:value:status"
-            size_t firstColon = progressData.find(L':');
-            size_t secondColon = progressData.rfind(L':');
-            
-            // Validate format: must have exactly 2 colons in the right order
-            if (firstColon != std::wstring::npos && secondColon != std::wstring::npos && 
-                firstColon < secondColon && firstColon != 0 && secondColon != progressData.length() - 1) {
-                std::wstring progressTitle = progressData.substr(0, firstColon);
-                std::wstring progressValue = progressData.substr(firstColon + 1, secondColon - firstColon - 1);
-                std::wstring progressStatus = progressData.substr(secondColon + 1);
-                
-                // Validate that components are not empty
-                if (!progressTitle.empty() && !progressValue.empty() && !progressStatus.empty()) {
-                    xml += L"<progress title=\"" + escape_xml(progressTitle) + L"\" ";
-                    xml += L"value=\"" + escape_xml(progressValue) + L"\" ";
-                    xml += L"status=\"" + escape_xml(progressStatus) + L"\"/>";
-                }
+            std::wstring progressTitle, progressValue, progressStatus;
+            if (parse_progress_data(progressData, progressTitle, progressValue, progressStatus)) {
+                xml += L"<progress title=\"" + escape_xml(progressTitle) + L"\" ";
+                xml += L"value=\"" + escape_xml(progressValue) + L"\" ";
+                xml += L"status=\"" + escape_xml(progressStatus) + L"\"/>";
             }
         }
         
