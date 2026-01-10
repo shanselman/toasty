@@ -1,3 +1,0 @@
-/home/runner/work/toasty/toasty/_codeql_build_dir/CMakeFiles/toasty.dir
-/home/runner/work/toasty/toasty/_codeql_build_dir/CMakeFiles/edit_cache.dir
-/home/runner/work/toasty/toasty/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
