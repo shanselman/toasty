@@ -1,7 +1,14 @@
 bin/
 obj/
+build/
+out/
 .vs/
 *.user
+*.exe
+*.obj
+*.pdb
+*.ilk
 nul
 Generated Files/
 .claude/
+CMakeUserPresets.json
