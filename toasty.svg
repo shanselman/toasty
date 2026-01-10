@@ -1,36 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle for contrast -->
+  <!-- Background -->
   <rect width="256" height="256" fill="none"/>
   
-  <!-- Toast body - rounded rectangle with golden brown color -->
-  <rect x="48" y="64" width="160" height="144" rx="16" ry="16" fill="#E8A857" stroke="#C68642" stroke-width="4"/>
+  <!-- Toast slice - realistic bread shape with slightly wavy edges -->
+  <path d="M 60 80 Q 58 75 62 72 L 194 72 Q 198 75 196 80 L 196 200 Q 198 205 194 208 L 62 208 Q 58 205 60 200 Z" 
+        fill="#E8B870" stroke="#C68642" stroke-width="3"/>
   
-  <!-- Crust edges - darker brown -->
-  <rect x="48" y="64" width="160" height="16" rx="16" ry="16" fill="#C68642"/>
-  <rect x="48" y="192" width="160" height="16" rx="16" ry="16" fill="#C68642"/>
+  <!-- Darker crust edges -->
+  <path d="M 60 80 Q 58 75 62 72 L 194 72 Q 198 75 196 80 L 196 88 L 60 88 Z" 
+        fill="#C68642" opacity="0.9"/>
+  <path d="M 60 200 L 60 208 Q 58 205 62 208 L 194 208 Q 198 205 196 208 L 196 200 Z" 
+        fill="#C68642" opacity="0.9"/>
   
-  <!-- Butter melting on top - yellow -->
-  <ellipse cx="128" cy="100" rx="40" ry="20" fill="#FFD700" opacity="0.8"/>
-  <ellipse cx="128" cy="105" rx="35" ry="15" fill="#FFF4A3" opacity="0.6"/>
+  <!-- Left crust edge -->
+  <path d="M 60 80 L 60 200 L 68 200 L 68 80 Z" 
+        fill="#C68642" opacity="0.6"/>
+  
+  <!-- Right crust edge -->
+  <path d="M 196 80 L 196 200 L 188 200 L 188 80 Z" 
+        fill="#C68642" opacity="0.6"/>
+  
+  <!-- Toast texture - small brown spots to simulate toasted bread -->
+  <ellipse cx="85" cy="95" rx="8" ry="6" fill="#C68642" opacity="0.3"/>
+  <ellipse cx="170" cy="100" rx="7" ry="5" fill="#C68642" opacity="0.25"/>
+  <ellipse cx="110" cy="110" rx="6" ry="7" fill="#B07842" opacity="0.3"/>
+  <ellipse cx="150" cy="115" rx="9" ry="6" fill="#C68642" opacity="0.28"/>
+  <ellipse cx="90" cy="170" rx="7" ry="6" fill="#C68642" opacity="0.25"/>
+  <ellipse cx="165" cy="175" rx="8" ry="7" fill="#B07842" opacity="0.3"/>
+  <ellipse cx="120" cy="185" rx="6" ry="5" fill="#C68642" opacity="0.27"/>
+  <ellipse cx="175" cy="165" rx="7" ry="8" fill="#C68642" opacity="0.26"/>
+  <ellipse cx="100" cy="190" rx="5" ry="6" fill="#B07842" opacity="0.28"/>
   
   <!-- Cute face -->
   <!-- Left eye -->
-  <circle cx="100" cy="130" r="8" fill="#5C4033"/>
-  <circle cx="102" cy="128" r="3" fill="#FFFFFF"/>
+  <circle cx="100" cy="135" r="7" fill="#5C4033"/>
+  <circle cx="102" cy="133" r="2.5" fill="#FFFFFF"/>
   
   <!-- Right eye -->
-  <circle cx="156" cy="130" r="8" fill="#5C4033"/>
-  <circle cx="158" cy="128" r="3" fill="#FFFFFF"/>
+  <circle cx="156" cy="135" r="7" fill="#5C4033"/>
+  <circle cx="158" cy="133" r="2.5" fill="#FFFFFF"/>
   
   <!-- Happy smile -->
-  <path d="M 100 155 Q 128 175 156 155" stroke="#5C4033" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M 105 160 Q 128 175 151 160" stroke="#5C4033" stroke-width="4" fill="none" stroke-linecap="round"/>
   
-  <!-- Rosy cheeks -->
-  <circle cx="75" cy="145" r="12" fill="#FF9999" opacity="0.4"/>
-  <circle cx="181" cy="145" r="12" fill="#FF9999" opacity="0.4"/>
-  
-  <!-- Little sparkle/shine on top left -->
-  <circle cx="90" cy="80" r="4" fill="#FFFFFF" opacity="0.7"/>
-  <circle cx="95" cy="75" r="2" fill="#FFFFFF" opacity="0.7"/>
+  <!-- Rosy cheeks - subtle -->
+  <ellipse cx="78" cy="150" rx="10" ry="8" fill="#E89B7C" opacity="0.4"/>
+  <ellipse cx="178" cy="150" rx="10" ry="8" fill="#E89B7C" opacity="0.4"/>
 </svg>
