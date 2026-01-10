@@ -14,17 +14,24 @@ That's it. Toasty auto-registers on first run.
 
 ```
 toasty <message> [options]
+toasty --install [agent]
+toasty --uninstall
+toasty --status
 
 Options:
   -t, --title <text>   Set notification title (default: "Notification")
   --app <name>         Use AI CLI preset (claude, copilot, gemini, codex, cursor)
   -i, --icon <path>    Custom icon path (PNG recommended, 48x48px)
   -h, --help           Show this help
+  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)
+  --uninstall          Remove hooks from all AI CLI agents
+  --status             Show installation status
+  --register           Register app for notifications (run once)
 ```
 
-## AI CLI Presets
+## AI CLI Auto-Detection
 
-Toasty automatically detects when it's called from a known AI tool and applies the appropriate preset! No need to specify `--app` manually.
+Toasty automatically detects when it's called from a known AI tool and applies the appropriate icon and title. No flags needed!
 
 **Auto-detected tools:**
 - Claude Code / Claude CLI
@@ -32,8 +39,6 @@ Toasty automatically detects when it's called from a known AI tool and applies t
 - Google Gemini CLI
 - OpenAI Codex CLI
 - Cursor IDE
-
-When called from these tools, Toasty will automatically use the matching icon and title.
 
 ```cmd
 # Called from Claude - automatically uses Claude preset
@@ -45,39 +50,71 @@ toasty "Code review done"
 
 ### Manual Preset Selection
 
-You can still manually specify a preset with `--app`:
+Override auto-detection with `--app`:
 
 ```cmd
-# Explicitly use Claude preset
 toasty "Processing finished" --app claude
-
-# Explicitly use Copilot preset
 toasty "Build succeeded" --app copilot
 ```
 
-### Override Title
-
-The `-t` flag overrides any preset title (auto-detected or manual):
-
-```cmd
-# Auto-detected preset with custom title
-toasty "Task done" -t "My Custom Title"
-
-# Manual preset with custom title
-toasty "Task done" --app gemini -t "My Custom Title"
-```
-
-## Custom Icons
-
-You can also use your own icons:
+### Custom Icons
 
 ```cmd
 toasty "Task complete" -i "C:\path\to\icon.png"
 ```
 
-Icons should be 48x48 pixels for best results. PNG format recommended.
+Icons should be 48x48 pixels PNG for best results.
 
-## Claude Code Integration
+## One-Click Hook Installation
+
+Toasty can automatically configure AI CLI agents to show notifications when tasks complete.
+
+### Supported Agents
+
+| Agent | Config Path | Hook Event | Scope |
+|-------|-------------|------------|-------|
+| Claude Code | `~/.claude/settings.json` | `Stop` | User |
+| Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
+| GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
+
+### Auto-Install
+
+```cmd
+# Install for all detected agents
+toasty --install
+
+# Install for specific agent
+toasty --install claude
+toasty --install gemini
+toasty --install copilot
+
+# Check what's installed
+toasty --status
+
+# Remove all hooks
+toasty --uninstall
+```
+
+### Example Output
+
+```
+Detecting AI CLI agents...
+  [x] Claude Code found
+  [x] Gemini CLI found
+  [ ] GitHub Copilot (in current repo)
+
+Installing toasty hooks...
+  [x] Claude Code: Added Stop hook
+  [x] Gemini CLI: Added AfterAgent hook
+
+Done! You'll get notifications when AI agents finish.
+```
+
+## Manual Integration
+
+If you prefer to configure hooks manually:
+
+### Claude Code
 
 Add to `~/.claude/settings.json`:
 
@@ -90,7 +127,7 @@ Add to `~/.claude/settings.json`:
           {
             "type": "command",
             "command": "C:\\path\\to\\toasty.exe \"Claude finished\"",
-            "timeout": 5
+            "timeout": 5000
           }
         ]
       }
@@ -99,10 +136,46 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-Toasty will automatically detect it's being called from Claude and apply the Claude preset (icon + title). You can still override the title if desired:
+### Gemini CLI
+
+Add to `~/.gemini/settings.json`:
 
 ```json
-"command": "C:\\path\\to\\toasty.exe \"Task complete\" -t \"Custom Title\""
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:\\path\\to\\toasty.exe \"Gemini finished\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### GitHub Copilot
+
+Add to `.github/hooks/toasty.json`:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "toasty 'Copilot finished'",
+        "powershell": "toasty.exe 'Copilot finished'",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}
 ```
 
 ## Building
