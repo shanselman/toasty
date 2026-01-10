@@ -65,8 +65,8 @@ std::wstring path_to_protocol_url(const std::wstring& path) {
         wchar_t c = path[i];
         if (c == L'\\') {
             result += L'/';
-        } else if (c == L':' && i == 1) {
-            // Drive letter colon, keep as-is (e.g., C:)
+        } else if (c == L':' && i == 1 && path.length() > 0 && iswalpha(path[0])) {
+            // Drive letter colon (e.g., C:), keep as-is
             result += c;
         } else if (c == L' ') {
             result += L"%20";
@@ -227,6 +227,9 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            } else {
+                std::wcerr << L"Error: --title requires a text argument.\n";
+                return 1;
             }
         }
         else if (arg == L"--button-url") {
