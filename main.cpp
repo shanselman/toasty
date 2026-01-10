@@ -89,6 +89,51 @@ bool register_protocol() {
     return true;
 }
 
+// Save the console window handle to registry for later retrieval
+bool save_console_window_handle(HWND hwnd) {
+    HKEY hKey;
+    std::wstring regKey = std::wstring(L"Software\\") + APP_NAME;
+    
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, regKey.c_str(), 0, nullptr,
+                                   REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+    
+    DWORD64 handleValue = (DWORD64)hwnd;
+    RegSetValueExW(hKey, L"LastConsoleWindow", 0, REG_QWORD, (BYTE*)&handleValue, sizeof(DWORD64));
+    RegCloseKey(hKey);
+    return true;
+}
+
+// Retrieve the saved console window handle from registry
+HWND get_saved_console_window_handle() {
+    HKEY hKey;
+    std::wstring regKey = std::wstring(L"Software\\") + APP_NAME;
+    
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, regKey.c_str(), 0, KEY_READ, &hKey);
+    if (result != ERROR_SUCCESS) {
+        return nullptr;
+    }
+    
+    DWORD64 handleValue = 0;
+    DWORD size = sizeof(DWORD64);
+    result = RegQueryValueExW(hKey, L"LastConsoleWindow", nullptr, nullptr, (BYTE*)&handleValue, &size);
+    RegCloseKey(hKey);
+    
+    if (result != ERROR_SUCCESS) {
+        return nullptr;
+    }
+    
+    HWND hwnd = (HWND)handleValue;
+    // Validate that the window still exists
+    if (IsWindow(hwnd)) {
+        return hwnd;
+    }
+    
+    return nullptr;
+}
+
 // Find and focus the console window
 bool focus_console_window() {
     HWND consoleWindow = GetConsoleWindow();
@@ -104,31 +149,47 @@ bool focus_console_window() {
         return true;
     }
     
-    // Fallback: try to find a console window by process
-    DWORD pid = GetCurrentProcessId();
-    HWND hwnd = nullptr;
+    // Try to get the saved console window handle
+    HWND savedWindow = get_saved_console_window_handle();
+    if (savedWindow != nullptr) {
+        if (IsIconic(savedWindow)) {
+            ShowWindow(savedWindow, SW_RESTORE);
+        }
+        SetForegroundWindow(savedWindow);
+        SetFocus(savedWindow);
+        return true;
+    }
     
-    // Enumerate all top-level windows to find console windows
+    // Last resort: try to find a console or terminal window
+    // This is used when toasty is launched via protocol (no console attached)
+    HWND foundWindow = nullptr;
+    
+    // Enumerate all top-level windows to find console windows or Windows Terminal
     EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
         wchar_t className[256];
         GetClassNameW(hwnd, className, 256);
         
         // Look for console windows or Windows Terminal
+        // Only consider visible windows
+        if (!IsWindowVisible(hwnd)) {
+            return TRUE;
+        }
+        
         if (wcscmp(className, L"ConsoleWindowClass") == 0 || 
             wcscmp(className, L"CASCADIA_HOSTING_WINDOW_CLASS") == 0) {
             HWND* pResult = (HWND*)lParam;
             *pResult = hwnd;
-            return FALSE; // Stop enumeration
+            return FALSE; // Stop enumeration - found a console/terminal
         }
         return TRUE; // Continue enumeration
-    }, (LPARAM)&hwnd);
+    }, (LPARAM)&foundWindow);
     
-    if (hwnd != nullptr) {
-        if (IsIconic(hwnd)) {
-            ShowWindow(hwnd, SW_RESTORE);
+    if (foundWindow != nullptr) {
+        if (IsIconic(foundWindow)) {
+            ShowWindow(foundWindow, SW_RESTORE);
         }
-        SetForegroundWindow(hwnd);
-        SetFocus(hwnd);
+        SetForegroundWindow(foundWindow);
+        SetFocus(foundWindow);
         return true;
     }
     
@@ -324,6 +385,12 @@ int wmain(int argc, wchar_t* argv[]) {
 
         // Set our AppUserModelId for this process
         SetCurrentProcessExplicitAppUserModelID(APP_ID);
+
+        // Save the current console window handle for later focus
+        HWND consoleWindow = GetConsoleWindow();
+        if (consoleWindow != nullptr) {
+            save_console_window_handle(consoleWindow);
+        }
 
         std::wstring xml = L"<toast activationType=\"protocol\" launch=\"toasty://focus\">"
                           L"<visual><binding template=\"ToastGeneric\">"
