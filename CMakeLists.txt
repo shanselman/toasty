@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Use static runtime for standalone exe
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-add_executable(toasty main.cpp)
+add_executable(toasty main.cpp resource.rc)
 
 # Link Windows Runtime libraries
 target_link_libraries(toasty PRIVATE
