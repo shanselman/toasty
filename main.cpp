@@ -194,11 +194,22 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            } else {
+                std::wcerr << L"Error: --title requires a value\n";
+                return 1;
             }
         }
         else if (arg == L"-s" || arg == L"--style") {
             if (i + 1 < argc) {
                 style = argv[++i];
+                // Validate style value
+                if (style != L"success" && style != L"error" && style != L"warning") {
+                    std::wcerr << L"Error: Invalid style '" << style << L"'. Valid options: success, error, warning\n";
+                    return 1;
+                }
+            } else {
+                std::wcerr << L"Error: --style requires a value (success, error, or warning)\n";
+                return 1;
             }
         }
         else if (arg[0] != L'-' && message.empty()) {
