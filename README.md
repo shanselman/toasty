@@ -116,6 +116,16 @@ cmake --build build --config Release
 
 Output: `build\Release\toasty.exe`
 
+## Why C++ and Not Rust?
+
+We evaluated implementing Toasty in Rust. While Rust offers excellent memory safety and modern language features, the C++ implementation is optimal for this project's goals:
+
+- **Smaller Binary**: 229 KB vs. estimated 500 KB - 2 MB in Rust
+- **Zero Dependencies**: Static linking with no runtime requirements
+- **Native Windows API**: C++/WinRT is the first-class way to access Windows Runtime
+
+See [RUST-EVALUATION.md](RUST-EVALUATION.md) for the complete analysis.
+
 ## License
 
 MIT
