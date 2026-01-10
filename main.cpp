@@ -65,7 +65,7 @@ std::wstring path_to_protocol_url(const std::wstring& path) {
         wchar_t c = path[i];
         if (c == L'\\') {
             result += L'/';
-        } else if (c == L':' && i == 1 && path.length() > 0 && iswalpha(path[0])) {
+        } else if (c == L':' && i == 1 && path.length() > 1 && iswalpha(path[0])) {
             // Drive letter colon (e.g., C:), keep as-is
             result += c;
         } else if (c == L' ') {
