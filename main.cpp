@@ -204,31 +204,66 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            } else {
+                std::wcerr << L"Error: " << arg << L" requires a value.\n";
+                return 1;
             }
         }
         else if (arg == L"--hero-image") {
             if (i + 1 < argc) {
                 heroImage = argv[++i];
+            } else {
+                std::wcerr << L"Error: --hero-image requires a path.\n";
+                return 1;
             }
         }
         else if (arg == L"--scenario") {
             if (i + 1 < argc) {
-                scenario = argv[++i];
+                std::wstring scenarioValue = argv[++i];
+                if (scenarioValue == L"reminder" || scenarioValue == L"alarm" || 
+                    scenarioValue == L"incomingCall" || scenarioValue == L"urgent") {
+                    scenario = scenarioValue;
+                } else {
+                    std::wcerr << L"Error: Invalid scenario '" << scenarioValue 
+                              << L"'. Valid options: reminder, alarm, incomingCall, urgent\n";
+                    return 1;
+                }
+            } else {
+                std::wcerr << L"Error: --scenario requires a value.\n";
+                return 1;
             }
         }
         else if (arg == L"--attribution") {
             if (i + 1 < argc) {
                 attribution = argv[++i];
+            } else {
+                std::wcerr << L"Error: --attribution requires text.\n";
+                return 1;
             }
         }
         else if (arg == L"--progress") {
             if (i + 1 < argc) {
                 progressData = argv[++i];
+            } else {
+                std::wcerr << L"Error: --progress requires data in format 'title:value:status'.\n";
+                return 1;
             }
         }
         else if (arg == L"--audio") {
             if (i + 1 < argc) {
-                audio = argv[++i];
+                std::wstring audioValue = argv[++i];
+                if (audioValue == L"default" || audioValue == L"im" || audioValue == L"mail" || 
+                    audioValue == L"reminder" || audioValue == L"sms" || audioValue == L"loopingAlarm" || 
+                    audioValue == L"loopingCall" || audioValue == L"silent") {
+                    audio = audioValue;
+                } else {
+                    std::wcerr << L"Error: Invalid audio '" << audioValue 
+                              << L"'. Valid options: default, im, mail, reminder, sms, loopingAlarm, loopingCall, silent\n";
+                    return 1;
+                }
+            } else {
+                std::wcerr << L"Error: --audio requires a value.\n";
+                return 1;
             }
         }
         else if (arg[0] != L'-' && message.empty()) {
@@ -303,14 +338,19 @@ int wmain(int argc, wchar_t* argv[]) {
             size_t firstColon = progressData.find(L':');
             size_t secondColon = progressData.rfind(L':');
             
-            if (firstColon != std::wstring::npos && secondColon != std::wstring::npos && firstColon != secondColon) {
+            // Validate format: must have exactly 2 colons in the right order
+            if (firstColon != std::wstring::npos && secondColon != std::wstring::npos && 
+                firstColon < secondColon && firstColon != 0 && secondColon != progressData.length() - 1) {
                 std::wstring progressTitle = progressData.substr(0, firstColon);
                 std::wstring progressValue = progressData.substr(firstColon + 1, secondColon - firstColon - 1);
                 std::wstring progressStatus = progressData.substr(secondColon + 1);
                 
-                xml += L"<progress title=\"" + escape_xml(progressTitle) + L"\" ";
-                xml += L"value=\"" + escape_xml(progressValue) + L"\" ";
-                xml += L"status=\"" + escape_xml(progressStatus) + L"\"/>";
+                // Validate that components are not empty
+                if (!progressTitle.empty() && !progressValue.empty() && !progressStatus.empty()) {
+                    xml += L"<progress title=\"" + escape_xml(progressTitle) + L"\" ";
+                    xml += L"value=\"" + escape_xml(progressValue) + L"\" ";
+                    xml += L"status=\"" + escape_xml(progressStatus) + L"\"/>";
+                }
             }
         }
         
