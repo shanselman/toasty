@@ -440,6 +440,14 @@ bool has_toasty_hook(const JsonArray& hooks) {
     for (const auto& hookItem : hooks) {
         if (hookItem.ValueType() == JsonValueType::Object) {
             auto hookObj = hookItem.GetObject();
+            // Check direct command field (correct format)
+            if (hookObj.HasKey(L"command")) {
+                std::wstring cmd = hookObj.GetNamedString(L"command").c_str();
+                if (cmd.find(L"toasty") != std::wstring::npos) {
+                    return true;
+                }
+            }
+            // Also check nested hooks array (legacy format)
             if (hookObj.HasKey(L"hooks")) {
                 auto innerHooks = hookObj.GetNamedArray(L"hooks");
                 for (const auto& innerHook : innerHooks) {
@@ -476,26 +484,21 @@ bool install_claude(const std::wstring& exePath) {
         }
     }
     
-    // Build hook structure
-    JsonObject hookItem;
-    JsonArray innerHooks;
-    JsonObject innerHook;
-    innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
-    
+    // Build hook object (directly in Stop array, no nested "hooks")
+    JsonObject hookObj;
+    hookObj.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
+
     std::wstring escapedPath = escape_json_string(exePath);
     std::wstring command = escapedPath + L" \"Claude needs attention\" -t \"Claude Code\"";
-    innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
-    innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
-    
-    innerHooks.Append(innerHook);
-    hookItem.SetNamedValue(L"hooks", innerHooks);
-    
+    hookObj.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
+    hookObj.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
+
     // Get or create hooks object
     JsonObject hooksObj;
     if (rootObj.HasKey(L"hooks")) {
         hooksObj = rootObj.GetNamedObject(L"hooks");
     }
-    
+
     // Get or create Stop array
     JsonArray stopArray;
     if (hooksObj.HasKey(L"Stop")) {
@@ -504,8 +507,8 @@ bool install_claude(const std::wstring& exePath) {
             return true; // Already installed
         }
     }
-    
-    stopArray.Append(hookItem);
+
+    stopArray.Append(hookObj);
     hooksObj.SetNamedValue(L"Stop", stopArray);
     rootObj.SetNamedValue(L"hooks", hooksObj);
     
@@ -531,26 +534,21 @@ bool install_gemini(const std::wstring& exePath) {
         }
     }
     
-    // Build hook structure
-    JsonObject hookItem;
-    JsonArray innerHooks;
-    JsonObject innerHook;
-    innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
-    
+    // Build hook object (directly in AfterAgent array, no nested "hooks")
+    JsonObject hookObj;
+    hookObj.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
+
     std::wstring escapedPath = escape_json_string(exePath);
     std::wstring command = escapedPath + L" \"Gemini finished\" -t \"Gemini\"";
-    innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
-    innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
-    
-    innerHooks.Append(innerHook);
-    hookItem.SetNamedValue(L"hooks", innerHooks);
-    
+    hookObj.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
+    hookObj.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
+
     // Get or create hooks object
     JsonObject hooksObj;
     if (rootObj.HasKey(L"hooks")) {
         hooksObj = rootObj.GetNamedObject(L"hooks");
     }
-    
+
     // Get or create AfterAgent array
     JsonArray afterAgentArray;
     if (hooksObj.HasKey(L"AfterAgent")) {
@@ -559,8 +557,8 @@ bool install_gemini(const std::wstring& exePath) {
             return true; // Already installed
         }
     }
-    
-    afterAgentArray.Append(hookItem);
+
+    afterAgentArray.Append(hookObj);
     hooksObj.SetNamedValue(L"AfterAgent", afterAgentArray);
     rootObj.SetNamedValue(L"hooks", hooksObj);
     
@@ -726,8 +724,16 @@ JsonArray remove_toasty_hooks(const JsonArray& hooks) {
         if (hookItem.ValueType() == JsonValueType::Object) {
             auto hookObj = hookItem.GetObject();
             bool isToasty = false;
-            
-            if (hookObj.HasKey(L"hooks")) {
+
+            // Check direct command field (correct format)
+            if (hookObj.HasKey(L"command")) {
+                std::wstring cmd = hookObj.GetNamedString(L"command").c_str();
+                if (cmd.find(L"toasty") != std::wstring::npos) {
+                    isToasty = true;
+                }
+            }
+            // Check nested hooks array (legacy format)
+            if (!isToasty && hookObj.HasKey(L"hooks")) {
                 auto innerHooks = hookObj.GetNamedArray(L"hooks");
                 for (const auto& innerHook : innerHooks) {
                     if (innerHook.ValueType() == JsonValueType::Object) {
@@ -741,13 +747,15 @@ JsonArray remove_toasty_hooks(const JsonArray& hooks) {
                         }
                     }
                 }
-            } else if (hookObj.HasKey(L"bash")) {
+            }
+            // Check bash field (Copilot format)
+            if (!isToasty && hookObj.HasKey(L"bash")) {
                 std::wstring bash = hookObj.GetNamedString(L"bash").c_str();
                 if (bash.find(L"toasty") != std::wstring::npos) {
                     isToasty = true;
                 }
             }
-            
+
             if (!isToasty) {
                 newArray.Append(hookItem);
             }
