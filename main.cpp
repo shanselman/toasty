@@ -51,23 +51,22 @@ std::wstring extract_icon_to_temp(int resourceId) {
     DWORD resourceSize = SizeofResource(nullptr, hResource);
     if (resourceSize == 0) return L"";
     
-    // Create temp file path
-    wchar_t tempPath[MAX_PATH];
-    wchar_t tempFile[MAX_PATH];
-    GetTempPathW(MAX_PATH, tempPath);
+    // Create temp file path using std::filesystem
+    wchar_t tempPathBuffer[MAX_PATH];
+    GetTempPathW(MAX_PATH, tempPathBuffer);
     
+    std::filesystem::path tempPath(tempPathBuffer);
     std::wstring fileName = L"toasty_icon_" + std::to_wstring(resourceId) + L".png";
-    wcscpy_s(tempFile, MAX_PATH, tempPath);
-    wcscat_s(tempFile, MAX_PATH, fileName.c_str());
+    tempPath /= fileName;
     
     // Write resource data to temp file
-    std::ofstream file(tempFile, std::ios::binary);
+    std::ofstream file(tempPath, std::ios::binary);
     if (!file) return L"";
     
     file.write(static_cast<const char*>(pLockedResource), resourceSize);
     file.close();
     
-    return tempFile;
+    return tempPath.wstring();
 }
 
 // Find preset by name (case-insensitive)
@@ -260,6 +259,9 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            } else {
+                std::wcerr << L"Error: --title requires an argument\n";
+                return 1;
             }
         }
         else if (arg == L"--app") {
@@ -269,11 +271,17 @@ int wmain(int argc, wchar_t* argv[]) {
                 if (preset) {
                     title = preset->title;
                     iconPath = extract_icon_to_temp(preset->iconResourceId);
+                    if (iconPath.empty()) {
+                        std::wcerr << L"Warning: Failed to extract icon for preset '" << appName << L"'\n";
+                    }
                 } else {
                     std::wcerr << L"Error: Unknown app preset '" << appName << L"'\n";
                     std::wcerr << L"Available presets: claude, copilot, gemini, codex, cursor\n";
                     return 1;
                 }
+            } else {
+                std::wcerr << L"Error: --app requires an argument\n";
+                return 1;
             }
         }
         else if (arg == L"-i" || arg == L"--icon") {
@@ -285,6 +293,9 @@ int wmain(int argc, wchar_t* argv[]) {
                     p = std::filesystem::absolute(p);
                 }
                 iconPath = p.wstring();
+            } else {
+                std::wcerr << L"Error: --icon requires an argument\n";
+                return 1;
             }
         }
         else if (arg[0] != L'-' && message.empty()) {
