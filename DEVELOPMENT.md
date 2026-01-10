@@ -71,6 +71,7 @@ main.cpp
 
 ## Toast XML Format
 
+Basic toast:
 ```xml
 <toast>
   <visual>
@@ -81,6 +82,24 @@ main.cpp
   </visual>
 </toast>
 ```
+
+With action buttons:
+```xml
+<toast>
+  <visual>
+    <binding template="ToastGeneric">
+      <text>Title</text>
+      <text>Message</text>
+    </binding>
+  </visual>
+  <actions>
+    <action content="Open Folder" arguments="file:///C:/build" activationType="protocol" />
+    <action content="View Docs" arguments="https://example.com" activationType="protocol" />
+  </actions>
+</toast>
+```
+
+Action buttons use `activationType="protocol"` which delegates to Windows protocol handlers (http/https for URLs, file:/// for file system paths). This avoids the complexity of COM activation for unpackaged desktop apps.
 
 ## Branches
 
