@@ -1,5 +1,7 @@
 # Toasty
 
+<img src="toasty.png" alt="Toasty Icon" width="128" height="128">
+
 A tiny Windows toast notification CLI. 229 KB, no dependencies.
 
 ## Quick Start
