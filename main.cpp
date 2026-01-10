@@ -65,9 +65,7 @@ bool register_protocol() {
         return false;
     }
 
-    std::wstring urlProtocol = L"";
-    RegSetValueExW(hKey, L"URL Protocol", 0, REG_SZ, (BYTE*)urlProtocol.c_str(), 
-                   (DWORD)((urlProtocol.length() + 1) * sizeof(wchar_t)));
+    RegSetValueExW(hKey, L"URL Protocol", 0, REG_SZ, nullptr, 0);
     
     std::wstring description = L"URL:Toasty Protocol";
     RegSetValueExW(hKey, nullptr, 0, REG_SZ, (BYTE*)description.c_str(), 
@@ -100,8 +98,8 @@ bool save_console_window_handle(HWND hwnd) {
         return false;
     }
     
-    DWORD64 handleValue = (DWORD64)hwnd;
-    RegSetValueExW(hKey, L"LastConsoleWindow", 0, REG_QWORD, (BYTE*)&handleValue, sizeof(DWORD64));
+    ULONG_PTR handleValue = (ULONG_PTR)hwnd;
+    RegSetValueExW(hKey, L"LastConsoleWindow", 0, REG_QWORD, (BYTE*)&handleValue, sizeof(ULONG_PTR));
     RegCloseKey(hKey);
     return true;
 }
@@ -116,8 +114,8 @@ HWND get_saved_console_window_handle() {
         return nullptr;
     }
     
-    DWORD64 handleValue = 0;
-    DWORD size = sizeof(DWORD64);
+    ULONG_PTR handleValue = 0;
+    DWORD size = sizeof(ULONG_PTR);
     result = RegQueryValueExW(hKey, L"LastConsoleWindow", nullptr, nullptr, (BYTE*)&handleValue, &size);
     RegCloseKey(hKey);
     
@@ -125,7 +123,7 @@ HWND get_saved_console_window_handle() {
         return nullptr;
     }
     
-    HWND hwnd = (HWND)handleValue;
+    HWND hwnd = (HWND)(ULONG_PTR)handleValue;
     // Validate that the window still exists
     if (IsWindow(hwnd)) {
         return hwnd;
