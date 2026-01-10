@@ -64,13 +64,19 @@ std::wstring escape_xml(const std::wstring& text) {
     return result;
 }
 
-// Escape backslashes for JSON strings
+// Escape backslashes and quotes for JSON strings
 std::wstring escape_json_string(const std::wstring& str) {
-    std::wstring result = str;
-    size_t pos = 0;
-    while ((pos = result.find(L"\\", pos)) != std::wstring::npos) {
-        result.replace(pos, 1, L"\\\\");
-        pos += 2;
+    std::wstring result;
+    result.reserve(str.size());
+    for (wchar_t c : str) {
+        switch (c) {
+            case L'\\': result += L"\\\\"; break;
+            case L'"':  result += L"\\\""; break;
+            case L'\n': result += L"\\n"; break;
+            case L'\r': result += L"\\r"; break;
+            case L'\t': result += L"\\t"; break;
+            default:    result += c; break;
+        }
     }
     return result;
 }
@@ -78,14 +84,22 @@ std::wstring escape_json_string(const std::wstring& str) {
 // Get the full path to the current executable
 std::wstring get_exe_path() {
     wchar_t exePath[MAX_PATH];
-    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    DWORD result = GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    if (result == 0 || result == MAX_PATH) {
+        // Failed to get exe path, return empty string
+        return L"";
+    }
     return std::wstring(exePath);
 }
 
 // Expand environment variables in a path
 std::wstring expand_env(const std::wstring& path) {
     wchar_t expanded[MAX_PATH];
-    ExpandEnvironmentStringsW(path.c_str(), expanded, MAX_PATH);
+    DWORD result = ExpandEnvironmentStringsW(path.c_str(), expanded, MAX_PATH);
+    if (result == 0 || result > MAX_PATH) {
+        // Failed to expand, return original path
+        return path;
+    }
     return std::wstring(expanded);
 }
 
@@ -107,7 +121,8 @@ bool detect_gemini() {
 }
 
 bool detect_copilot() {
-    return path_exists(L".github");
+    // Check for .github directory AND hooks subdirectory as more specific indicator
+    return path_exists(L".github\\hooks") || path_exists(L".github");
 }
 
 // Read file content as string
@@ -140,7 +155,15 @@ bool backup_file(const std::wstring& path) {
         }
         return true;
     } catch (const std::exception& e) {
-        std::wcerr << L"Warning: Failed to create backup: " << e.what() << L"\n";
+        // Convert narrow string to wide string
+        int size = MultiByteToWideChar(CP_UTF8, 0, e.what(), -1, nullptr, 0);
+        if (size > 0) {
+            std::wstring wideMsg(size - 1, 0);
+            MultiByteToWideChar(CP_UTF8, 0, e.what(), -1, &wideMsg[0], size);
+            std::wcerr << L"Warning: Failed to create backup: " << wideMsg << L"\n";
+        } else {
+            std::wcerr << L"Warning: Failed to create backup\n";
+        }
         return false;
     }
 }
@@ -558,8 +581,16 @@ bool uninstall_copilot() {
             backup_file(configPath);
             fs::remove(configPath);
         }
-    } catch (const std::exception& ex) {
-        std::wcerr << L"Error uninstalling Copilot hook: " << ex.what() << L"\n";
+    } catch (const std::exception& e) {
+        // Convert narrow string to wide string
+        int size = MultiByteToWideChar(CP_UTF8, 0, e.what(), -1, nullptr, 0);
+        if (size > 0) {
+            std::wstring wideMsg(size - 1, 0);
+            MultiByteToWideChar(CP_UTF8, 0, e.what(), -1, &wideMsg[0], size);
+            std::wcerr << L"Error uninstalling Copilot hook: " << wideMsg << L"\n";
+        } else {
+            std::wcerr << L"Error uninstalling Copilot hook\n";
+        }
         return false;
     }
     
@@ -589,6 +620,11 @@ void show_status() {
 // Handle --install command
 void handle_install(const std::wstring& agent) {
     std::wstring exePath = get_exe_path();
+    
+    if (exePath.empty()) {
+        std::wcerr << L"Error: Could not determine toasty.exe path\n";
+        return;
+    }
     
     bool installAll = agent.empty() || agent == L"all";
     bool installClaude = installAll || agent == L"claude";
