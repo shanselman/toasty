@@ -29,6 +29,7 @@ namespace fs = std::filesystem;
 
 const wchar_t* APP_ID = L"Toasty.CLI.Notification";
 const wchar_t* APP_NAME = L"Toasty";
+const wchar_t* PROTOCOL_NAME = L"toasty";
 
 struct AppPreset {
     std::wstring name;
@@ -312,6 +313,231 @@ std::wstring escape_xml(const std::wstring& text) {
         }
     }
     return result;
+}
+
+// Register protocol handler for toast activation (click-to-focus)
+bool register_protocol() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+    HKEY hKey;
+    std::wstring protocolKey = std::wstring(L"Software\\Classes\\") + PROTOCOL_NAME;
+
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, protocolKey.c_str(), 0, nullptr,
+                                   REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    RegSetValueExW(hKey, L"URL Protocol", 0, REG_SZ, nullptr, 0);
+
+    std::wstring description = L"URL:Toasty Protocol";
+    RegSetValueExW(hKey, nullptr, 0, REG_SZ, (BYTE*)description.c_str(),
+                   (DWORD)((description.length() + 1) * sizeof(wchar_t)));
+    RegCloseKey(hKey);
+
+    std::wstring commandKey = protocolKey + L"\\shell\\open\\command";
+    result = RegCreateKeyExW(HKEY_CURRENT_USER, commandKey.c_str(), 0, nullptr,
+                            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    std::wstring command = L"\"" + std::wstring(exePath) + L"\" --focus \"%1\"";
+    RegSetValueExW(hKey, nullptr, 0, REG_SZ, (BYTE*)command.c_str(),
+                   (DWORD)((command.length() + 1) * sizeof(wchar_t)));
+    RegCloseKey(hKey);
+
+    return true;
+}
+
+// Save the console window handle to registry for later retrieval
+bool save_console_window_handle(HWND hwnd) {
+    HKEY hKey;
+    std::wstring regKey = std::wstring(L"Software\\") + APP_NAME;
+
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, regKey.c_str(), 0, nullptr,
+                                   REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    ULONG_PTR handleValue = (ULONG_PTR)hwnd;
+    RegSetValueExW(hKey, L"LastConsoleWindow", 0, REG_QWORD, (BYTE*)&handleValue, sizeof(ULONG_PTR));
+    RegCloseKey(hKey);
+    return true;
+}
+
+// Retrieve the saved console window handle from registry
+HWND get_saved_console_window_handle() {
+    HKEY hKey;
+    std::wstring regKey = std::wstring(L"Software\\") + APP_NAME;
+
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, regKey.c_str(), 0, KEY_READ, &hKey);
+    if (result != ERROR_SUCCESS) {
+        return nullptr;
+    }
+
+    ULONG_PTR handleValue = 0;
+    DWORD size = sizeof(ULONG_PTR);
+    result = RegQueryValueExW(hKey, L"LastConsoleWindow", nullptr, nullptr, (BYTE*)&handleValue, &size);
+    RegCloseKey(hKey);
+
+    if (result != ERROR_SUCCESS) {
+        return nullptr;
+    }
+
+    HWND hwnd = (HWND)(ULONG_PTR)handleValue;
+    if (IsWindow(hwnd)) {
+        return hwnd;
+    }
+
+    return nullptr;
+}
+
+// Structure to pass data to EnumWindows callback
+struct FindWindowData {
+    DWORD targetPid;
+    HWND foundWindow;
+};
+
+// Find window belonging to a specific process
+HWND find_window_for_process(DWORD pid) {
+    FindWindowData data = { pid, nullptr };
+
+    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+        FindWindowData* pData = (FindWindowData*)lParam;
+
+        DWORD windowPid = 0;
+        GetWindowThreadProcessId(hwnd, &windowPid);
+
+        if (windowPid == pData->targetPid && IsWindowVisible(hwnd)) {
+            // Check if it has a title (real window, not helper)
+            wchar_t title[256];
+            if (GetWindowTextW(hwnd, title, 256) > 0) {
+                pData->foundWindow = hwnd;
+                return FALSE; // Stop enumeration
+            }
+        }
+        return TRUE;
+    }, (LPARAM)&data);
+
+    return data.foundWindow;
+}
+
+// Walk process tree to find the terminal/IDE window that launched us
+HWND find_ancestor_window() {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return nullptr;
+    }
+
+    DWORD currentPid = GetCurrentProcessId();
+
+    // Walk up the process tree (max 20 levels)
+    for (int depth = 0; depth < 20; depth++) {
+        PROCESSENTRY32W pe32;
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+        DWORD parentPid = 0;
+
+        // Find current process to get parent PID
+        if (Process32FirstW(snapshot, &pe32)) {
+            do {
+                if (pe32.th32ProcessID == currentPid) {
+                    parentPid = pe32.th32ParentProcessID;
+                    break;
+                }
+            } while (Process32NextW(snapshot, &pe32));
+        }
+
+        if (parentPid == 0 || parentPid == currentPid) {
+            break;
+        }
+
+        // Check if this parent has a visible window
+        HWND hwnd = find_window_for_process(parentPid);
+        if (hwnd) {
+            CloseHandle(snapshot);
+            return hwnd;
+        }
+
+        currentPid = parentPid;
+    }
+
+    CloseHandle(snapshot);
+    return nullptr;
+}
+
+// Helper to forcefully bring a window to foreground (works around Windows restrictions)
+bool force_foreground_window(HWND hwnd) {
+    if (!hwnd || !IsWindow(hwnd)) {
+        return false;
+    }
+
+    // Get the foreground window's thread
+    DWORD foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
+    DWORD currentThread = GetCurrentThreadId();
+
+    // Attach to the foreground thread to get input focus permission
+    if (foregroundThread != currentThread) {
+        AttachThreadInput(currentThread, foregroundThread, TRUE);
+    }
+
+    // Restore if minimized
+    if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+    }
+
+    // Try multiple methods to bring window to front
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+
+    // Simulate a keypress to help with focus (empty ALT press)
+    keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+
+    // Detach from foreground thread
+    if (foregroundThread != currentThread) {
+        AttachThreadInput(currentThread, foregroundThread, FALSE);
+    }
+
+    return true;
+}
+
+bool focus_console_window() {
+    // First try: saved console window handle from registry (most reliable)
+    HWND savedWindow = get_saved_console_window_handle();
+    if (savedWindow != nullptr) {
+        return force_foreground_window(savedWindow);
+    }
+
+    // Second try: enumerate windows to find a console or Windows Terminal
+    HWND foundWindow = nullptr;
+    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+        wchar_t className[256];
+        GetClassNameW(hwnd, className, 256);
+
+        if (!IsWindowVisible(hwnd)) {
+            return TRUE;
+        }
+
+        if (wcscmp(className, L"ConsoleWindowClass") == 0 ||
+            wcscmp(className, L"CASCADIA_HOSTING_WINDOW_CLASS") == 0) {
+            HWND* pResult = (HWND*)lParam;
+            *pResult = hwnd;
+            return FALSE;
+        }
+        return TRUE;
+    }, (LPARAM)&foundWindow);
+
+    if (foundWindow != nullptr) {
+        return force_foreground_window(foundWindow);
+    }
+
+    return false;
 }
 
 // Escape backslashes and quotes for JSON strings
@@ -1042,6 +1268,8 @@ bool create_shortcut() {
     CoUninitialize();
 
     if (SUCCEEDED(hr)) {
+        // Also register the protocol handler for click-to-focus
+        register_protocol();
         std::wcout << L"Registered! Shortcut created at:\n" << shortcutPath << L"\n";
         return true;
     }
@@ -1058,6 +1286,9 @@ bool is_registered() {
 }
 
 bool ensure_registered() {
+    // Always ensure protocol handler is registered for click-to-focus
+    register_protocol();
+
     if (is_registered()) {
         return true;
     }
@@ -1108,6 +1339,10 @@ bool ensure_registered() {
     shellLink->Release();
     CoUninitialize();
 
+    if (SUCCEEDED(hr)) {
+        // Also register the protocol handler for click-to-focus
+        register_protocol();
+    }
     return SUCCEEDED(hr);
 }
 
@@ -1124,6 +1359,7 @@ int wmain(int argc, wchar_t* argv[]) {
     bool doInstall = false;
     bool doUninstall = false;
     bool doStatus = false;
+    bool doFocus = false;
     std::wstring installAgent;
     bool explicitApp = false;  // Track if user explicitly set --app
     bool explicitTitle = false; // Track if user explicitly set -t
@@ -1169,6 +1405,9 @@ int wmain(int argc, wchar_t* argv[]) {
         }
         else if (arg == L"--status") {
             doStatus = true;
+        }
+        else if (arg == L"--focus") {
+            doFocus = true;
         }
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
@@ -1255,6 +1494,15 @@ int wmain(int argc, wchar_t* argv[]) {
         return 0;
     }
 
+    if (doFocus) {
+        // Called by protocol handler when toast is clicked
+        // Detach from console entirely to prevent flash
+        FreeConsole();
+
+        bool result = focus_console_window();
+        return result ? 0 : 1;
+    }
+
     if (message.empty()) {
         std::wcerr << L"Error: Message is required.\n";
         print_usage();
@@ -1270,8 +1518,15 @@ int wmain(int argc, wchar_t* argv[]) {
         // Set our AppUserModelId for this process
         SetCurrentProcessExplicitAppUserModelID(APP_ID);
 
-        // Build toast XML with optional icon
-        std::wstring xml = L"<toast><visual><binding template=\"ToastGeneric\">";
+        // Save the terminal window handle for click-to-focus
+        // Walk process tree to find the actual terminal/IDE window
+        HWND terminalWnd = find_ancestor_window();
+        if (terminalWnd) {
+            save_console_window_handle(terminalWnd);
+        }
+
+        // Build toast XML with protocol activation for click-to-focus
+        std::wstring xml = L"<toast activationType=\"protocol\" launch=\"toasty://focus\"><visual><binding template=\"ToastGeneric\">";
         
         // Add icon if provided
         if (!iconPath.empty()) {
