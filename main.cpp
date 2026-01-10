@@ -61,11 +61,23 @@ std::wstring escape_xml(const std::wstring& text) {
 std::wstring path_to_protocol_url(const std::wstring& path) {
     // Convert Windows path to file:/// protocol URL for explorer
     std::wstring result = L"file:///";
-    for (wchar_t c : path) {
+    for (size_t i = 0; i < path.length(); i++) {
+        wchar_t c = path[i];
         if (c == L'\\') {
             result += L'/';
+        } else if (c == L':' && i == 1) {
+            // Drive letter colon, keep as-is (e.g., C:)
+            result += c;
         } else if (c == L' ') {
             result += L"%20";
+        } else if (c == L'#') {
+            result += L"%23";
+        } else if (c == L'?') {
+            result += L"%3F";
+        } else if (c == L'&') {
+            result += L"%26";
+        } else if (c == L'%') {
+            result += L"%25";
         } else {
             result += c;
         }
@@ -221,8 +233,15 @@ int wmain(int argc, wchar_t* argv[]) {
             if (i + 2 < argc) {
                 ToastButton btn;
                 btn.label = argv[++i];
-                btn.protocol = argv[++i];
-                buttons.push_back(btn);
+                std::wstring url = argv[++i];
+                // Basic URL validation - check for http:// or https:// prefix
+                if (url.find(L"http://") == 0 || url.find(L"https://") == 0) {
+                    btn.protocol = url;
+                    buttons.push_back(btn);
+                } else {
+                    std::wcerr << L"Error: URL must start with http:// or https://\n";
+                    return 1;
+                }
             } else {
                 std::wcerr << L"Error: --button-url requires label and URL arguments.\n";
                 return 1;
