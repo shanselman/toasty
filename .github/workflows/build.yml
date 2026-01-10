@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, ARM64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.arch }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: toasty-${{ matrix.arch }}
+          path: build/Release/toasty.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download x64
+        uses: actions/download-artifact@v4
+        with:
+          name: toasty-x64
+          path: x64
+
+      - name: Download ARM64
+        uses: actions/download-artifact@v4
+        with:
+          name: toasty-ARM64
+          path: arm64
+
+      - name: Rename binaries
+        run: |
+          mv x64/toasty.exe toasty-x64.exe
+          mv arm64/toasty.exe toasty-arm64.exe
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            toasty-x64.exe
+            toasty-arm64.exe
