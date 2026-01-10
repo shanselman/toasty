@@ -20,6 +20,7 @@ using namespace Windows::UI::Notifications;
 
 const wchar_t* APP_ID = L"Toasty.CLI.Notification";
 const wchar_t* APP_NAME = L"Toasty";
+const wchar_t* PROTOCOL_NAME = L"toasty";
 
 void print_usage() {
     std::wcout << L"toasty - Windows toast notification CLI\n\n"
@@ -48,6 +49,90 @@ std::wstring escape_xml(const std::wstring& text) {
         }
     }
     return result;
+}
+
+// Register protocol handler for toast activation
+bool register_protocol() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+    HKEY hKey;
+    std::wstring protocolKey = std::wstring(L"Software\\Classes\\") + PROTOCOL_NAME;
+    
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, protocolKey.c_str(), 0, nullptr, 
+                                   REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    std::wstring urlProtocol = L"";
+    RegSetValueExW(hKey, L"URL Protocol", 0, REG_SZ, (BYTE*)urlProtocol.c_str(), 
+                   (DWORD)((urlProtocol.length() + 1) * sizeof(wchar_t)));
+    
+    std::wstring description = L"URL:Toasty Protocol";
+    RegSetValueExW(hKey, nullptr, 0, REG_SZ, (BYTE*)description.c_str(), 
+                   (DWORD)((description.length() + 1) * sizeof(wchar_t)));
+    RegCloseKey(hKey);
+
+    std::wstring commandKey = protocolKey + L"\\shell\\open\\command";
+    result = RegCreateKeyExW(HKEY_CURRENT_USER, commandKey.c_str(), 0, nullptr,
+                            REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &hKey, nullptr);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    std::wstring command = L"\"" + std::wstring(exePath) + L"\" --focus \"%1\"";
+    RegSetValueExW(hKey, nullptr, 0, REG_SZ, (BYTE*)command.c_str(), 
+                   (DWORD)((command.length() + 1) * sizeof(wchar_t)));
+    RegCloseKey(hKey);
+
+    return true;
+}
+
+// Find and focus the console window
+bool focus_console_window() {
+    HWND consoleWindow = GetConsoleWindow();
+    if (consoleWindow != nullptr) {
+        // Try to restore if minimized
+        if (IsIconic(consoleWindow)) {
+            ShowWindow(consoleWindow, SW_RESTORE);
+        }
+        
+        // Bring window to foreground
+        SetForegroundWindow(consoleWindow);
+        SetFocus(consoleWindow);
+        return true;
+    }
+    
+    // Fallback: try to find a console window by process
+    DWORD pid = GetCurrentProcessId();
+    HWND hwnd = nullptr;
+    
+    // Enumerate all top-level windows to find console windows
+    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+        wchar_t className[256];
+        GetClassNameW(hwnd, className, 256);
+        
+        // Look for console windows or Windows Terminal
+        if (wcscmp(className, L"ConsoleWindowClass") == 0 || 
+            wcscmp(className, L"CASCADIA_HOSTING_WINDOW_CLASS") == 0) {
+            HWND* pResult = (HWND*)lParam;
+            *pResult = hwnd;
+            return FALSE; // Stop enumeration
+        }
+        return TRUE; // Continue enumeration
+    }, (LPARAM)&hwnd);
+    
+    if (hwnd != nullptr) {
+        if (IsIconic(hwnd)) {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+        return true;
+    }
+    
+    return false;
 }
 
 // Create a Start Menu shortcut with our AppUserModelId
@@ -99,6 +184,8 @@ bool create_shortcut() {
     CoUninitialize();
 
     if (SUCCEEDED(hr)) {
+        // Also register the protocol handler
+        register_protocol();
         std::wcout << L"Registered! Shortcut created at:\n" << shortcutPath << L"\n";
         return true;
     }
@@ -165,6 +252,11 @@ bool ensure_registered() {
     shellLink->Release();
     CoUninitialize();
 
+    if (SUCCEEDED(hr)) {
+        // Also register the protocol handler
+        register_protocol();
+    }
+
     return SUCCEEDED(hr);
 }
 
@@ -177,6 +269,7 @@ int wmain(int argc, wchar_t* argv[]) {
     std::wstring message;
     std::wstring title = L"Notification";
     bool doRegister = false;
+    bool doFocus = false;
 
     for (int i = 1; i < argc; i++) {
         std::wstring arg = argv[i];
@@ -187,6 +280,9 @@ int wmain(int argc, wchar_t* argv[]) {
         }
         else if (arg == L"--register") {
             doRegister = true;
+        }
+        else if (arg == L"--focus") {
+            doFocus = true;
         }
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
@@ -208,6 +304,12 @@ int wmain(int argc, wchar_t* argv[]) {
         }
     }
 
+    if (doFocus) {
+        // Handle protocol activation - focus the console window
+        focus_console_window();
+        return 0;
+    }
+
     if (message.empty()) {
         std::wcerr << L"Error: Message is required.\n";
         print_usage();
@@ -223,7 +325,8 @@ int wmain(int argc, wchar_t* argv[]) {
         // Set our AppUserModelId for this process
         SetCurrentProcessExplicitAppUserModelID(APP_ID);
 
-        std::wstring xml = L"<toast><visual><binding template=\"ToastGeneric\">"
+        std::wstring xml = L"<toast activationType=\"protocol\" launch=\"toasty://focus\">"
+                          L"<visual><binding template=\"ToastGeneric\">"
                           L"<text>" + escape_xml(title) + L"</text>"
                           L"<text>" + escape_xml(message) + L"</text>"
                           L"</binding></visual></toast>";
