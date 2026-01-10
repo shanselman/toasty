@@ -64,6 +64,17 @@ std::wstring escape_xml(const std::wstring& text) {
     return result;
 }
 
+// Escape backslashes for JSON strings
+std::wstring escape_json_string(const std::wstring& str) {
+    std::wstring result = str;
+    size_t pos = 0;
+    while ((pos = result.find(L"\\", pos)) != std::wstring::npos) {
+        result.replace(pos, 1, L"\\\\");
+        pos += 2;
+    }
+    return result;
+}
+
 // Get the full path to the current executable
 std::wstring get_exe_path() {
     wchar_t exePath[MAX_PATH];
@@ -124,9 +135,12 @@ bool write_file(const std::wstring& path, const std::string& content) {
 bool backup_file(const std::wstring& path) {
     std::wstring backupPath = path + L".bak";
     try {
-        fs::copy_file(path, backupPath, fs::copy_options::overwrite_existing);
+        if (path_exists(path)) {
+            fs::copy_file(path, backupPath, fs::copy_options::overwrite_existing);
+        }
         return true;
-    } catch (...) {
+    } catch (const std::exception& e) {
+        std::wcerr << L"Warning: Failed to create backup: " << e.what() << L"\n";
         return false;
     }
 }
@@ -183,8 +197,8 @@ bool install_claude(const std::wstring& exePath) {
         try {
             backup_file(configPath);
             rootObj = JsonObject::Parse(to_hstring(existingContent));
-        } catch (...) {
-            // If parsing fails, start fresh
+        } catch (const hresult_error& ex) {
+            std::wcerr << L"Warning: Failed to parse existing config, starting fresh: " << ex.message().c_str() << L"\n";
             rootObj = JsonObject();
         }
     }
@@ -195,15 +209,8 @@ bool install_claude(const std::wstring& exePath) {
     JsonObject innerHook;
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
     
-    // Escape backslashes for JSON
-    std::wstring escapedPath = exePath;
-    size_t pos = 0;
-    while ((pos = escapedPath.find(L"\\", pos)) != std::wstring::npos) {
-        escapedPath.replace(pos, 1, L"\\\\");
-        pos += 2;
-    }
-    
-    std::wstring command = escapedPath + L" \\\"Claude needs attention\\\" -t \\\"Claude Code\\\"";
+    std::wstring escapedPath = escape_json_string(exePath);
+    std::wstring command = escapedPath + L" \"Claude needs attention\" -t \"Claude Code\"";
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
     innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
     
@@ -245,7 +252,8 @@ bool install_gemini(const std::wstring& exePath) {
         try {
             backup_file(configPath);
             rootObj = JsonObject::Parse(to_hstring(existingContent));
-        } catch (...) {
+        } catch (const hresult_error& ex) {
+            std::wcerr << L"Warning: Failed to parse existing config, starting fresh: " << ex.message().c_str() << L"\n";
             rootObj = JsonObject();
         }
     }
@@ -256,15 +264,8 @@ bool install_gemini(const std::wstring& exePath) {
     JsonObject innerHook;
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
     
-    // Escape backslashes for JSON
-    std::wstring escapedPath = exePath;
-    size_t pos = 0;
-    while ((pos = escapedPath.find(L"\\", pos)) != std::wstring::npos) {
-        escapedPath.replace(pos, 1, L"\\\\");
-        pos += 2;
-    }
-    
-    std::wstring command = escapedPath + L" \\\"Gemini finished\\\" -t \\\"Gemini\\\"";
+    std::wstring escapedPath = escape_json_string(exePath);
+    std::wstring command = escapedPath + L" \"Gemini finished\" -t \"Gemini\"";
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
     innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
     
@@ -310,7 +311,8 @@ bool install_copilot(const std::wstring& exePath) {
         try {
             backup_file(configPath);
             rootObj = JsonObject::Parse(to_hstring(existingContent));
-        } catch (...) {
+        } catch (const hresult_error& ex) {
+            std::wcerr << L"Warning: Failed to parse existing config, starting fresh: " << ex.message().c_str() << L"\n";
             rootObj = JsonObject();
         }
     }
@@ -321,8 +323,15 @@ bool install_copilot(const std::wstring& exePath) {
     // Build hook structure
     JsonObject hookObj;
     hookObj.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
+    
+    // For bash, use forward slashes and toasty (assuming it's in PATH)
     hookObj.SetNamedValue(L"bash", JsonValue::CreateStringValue(L"toasty 'Copilot finished' -t 'GitHub Copilot'"));
-    hookObj.SetNamedValue(L"powershell", JsonValue::CreateStringValue(L"toasty.exe 'Copilot finished' -t 'GitHub Copilot'"));
+    
+    // For PowerShell, use the full exe path with escaped backslashes
+    std::wstring escapedPath = escape_json_string(exePath);
+    std::wstring psCommand = escapedPath + L" 'Copilot finished' -t 'GitHub Copilot'";
+    hookObj.SetNamedValue(L"powershell", JsonValue::CreateStringValue(psCommand));
+    
     hookObj.SetNamedValue(L"timeoutSec", JsonValue::CreateNumberValue(5));
     
     // Get or create hooks object
@@ -373,7 +382,10 @@ bool is_claude_installed() {
                 return has_toasty_hook(stopArray);
             }
         }
-    } catch (...) {}
+    } catch (const hresult_error&) {
+        // Config exists but couldn't be parsed
+        return false;
+    }
     
     return false;
 }
@@ -393,7 +405,10 @@ bool is_gemini_installed() {
                 return has_toasty_hook(array);
             }
         }
-    } catch (...) {}
+    } catch (const hresult_error&) {
+        // Config exists but couldn't be parsed
+        return false;
+    }
     
     return false;
 }
@@ -423,7 +438,10 @@ bool is_copilot_installed() {
                 }
             }
         }
-    } catch (...) {}
+    } catch (const hresult_error&) {
+        // Config exists but couldn't be parsed
+        return false;
+    }
     
     return false;
 }
@@ -490,7 +508,8 @@ bool uninstall_claude() {
                 return write_file(configPath, jsonStr);
             }
         }
-    } catch (...) {
+    } catch (const hresult_error& ex) {
+        std::wcerr << L"Error uninstalling Claude hook: " << ex.message().c_str() << L"\n";
         return false;
     }
     
@@ -522,7 +541,8 @@ bool uninstall_gemini() {
                 return write_file(configPath, jsonStr);
             }
         }
-    } catch (...) {
+    } catch (const hresult_error& ex) {
+        std::wcerr << L"Error uninstalling Gemini hook: " << ex.message().c_str() << L"\n";
         return false;
     }
     
@@ -538,7 +558,8 @@ bool uninstall_copilot() {
             backup_file(configPath);
             fs::remove(configPath);
         }
-    } catch (...) {
+    } catch (const std::exception& ex) {
+        std::wcerr << L"Error uninstalling Copilot hook: " << ex.what() << L"\n";
         return false;
     }
     
