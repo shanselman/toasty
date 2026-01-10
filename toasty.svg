@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle for contrast -->
+  <rect width="256" height="256" fill="none"/>
+  
+  <!-- Toast body - rounded rectangle with golden brown color -->
+  <rect x="48" y="64" width="160" height="144" rx="16" ry="16" fill="#E8A857" stroke="#C68642" stroke-width="4"/>
+  
+  <!-- Crust edges - darker brown -->
+  <rect x="48" y="64" width="160" height="16" rx="16" ry="16" fill="#C68642"/>
+  <rect x="48" y="192" width="160" height="16" rx="16" ry="16" fill="#C68642"/>
+  
+  <!-- Butter melting on top - yellow -->
+  <ellipse cx="128" cy="100" rx="40" ry="20" fill="#FFD700" opacity="0.8"/>
+  <ellipse cx="128" cy="105" rx="35" ry="15" fill="#FFF4A3" opacity="0.6"/>
+  
+  <!-- Cute face -->
+  <!-- Left eye -->
+  <circle cx="100" cy="130" r="8" fill="#5C4033"/>
+  <circle cx="102" cy="128" r="3" fill="#FFFFFF"/>
+  
+  <!-- Right eye -->
+  <circle cx="156" cy="130" r="8" fill="#5C4033"/>
+  <circle cx="158" cy="128" r="3" fill="#FFFFFF"/>
+  
+  <!-- Happy smile -->
+  <path d="M 100 155 Q 128 175 156 155" stroke="#5C4033" stroke-width="5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Rosy cheeks -->
+  <circle cx="75" cy="145" r="12" fill="#FF9999" opacity="0.4"/>
+  <circle cx="181" cy="145" r="12" fill="#FF9999" opacity="0.4"/>
+  
+  <!-- Little sparkle/shine on top left -->
+  <circle cx="90" cy="80" r="4" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="95" cy="75" r="2" fill="#FFFFFF" opacity="0.7"/>
+</svg>

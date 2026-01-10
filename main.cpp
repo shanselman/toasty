@@ -74,6 +74,7 @@ bool create_shortcut() {
 
     shellLink->SetPath(exePath);
     shellLink->SetDescription(L"Toasty - Toast Notification CLI");
+    shellLink->SetIconLocation(exePath, 0); // Use icon from executable
 
     IPropertyStore* propStore = nullptr;
     hr = shellLink->QueryInterface(IID_IPropertyStore, (void**)&propStore);
@@ -141,6 +142,7 @@ bool ensure_registered() {
 
     shellLink->SetPath(exePath);
     shellLink->SetDescription(L"Toasty - Toast Notification CLI");
+    shellLink->SetIconLocation(exePath, 0); // Use icon from executable
 
     IPropertyStore* propStore = nullptr;
     hr = shellLink->QueryInterface(IID_IPropertyStore, (void**)&propStore);

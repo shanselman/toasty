@@ -12,3 +12,9 @@ nul
 Generated Files/
 .claude/
 CMakeUserPresets.json
+
+# Intermediate icon files (keep toasty.png and toasty.ico)
+toasty-16.png
+toasty-32.png
+toasty-48.png
+toasty-256.png
