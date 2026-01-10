@@ -17,6 +17,8 @@ toasty <message> [options]
 toasty --install [agent]
 toasty --uninstall
 toasty --status
+toasty --update
+toasty --version
 
 Options:
   -t, --title <text>   Set notification title (default: "Notification")
@@ -25,6 +27,8 @@ Options:
   --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)
   --uninstall          Remove hooks from all AI CLI agents
   --status             Show installation status
+  --update             Check for updates and install if available
+  --version            Show current version
 ```
 
 ## AI CLI Auto-Detection

@@ -9,27 +9,36 @@
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.UI.Notifications.h>
 #include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Web.Http.h>
+#include <winrt/Windows.Web.Http.Headers.h>
 #include <iostream>
 #include <string>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <tlhelp32.h>
+#include <wininet.h>
 #include "resource.h"
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "wininet.lib")
 
 using namespace winrt;
 using namespace Windows::Data::Xml::Dom;
 using namespace Windows::Data::Json;
 using namespace Windows::UI::Notifications;
+using namespace Windows::Web::Http;
+using namespace Windows::Web::Http::Headers;
 namespace fs = std::filesystem;
 
 const wchar_t* APP_ID = L"Toasty.CLI.Notification";
 const wchar_t* APP_NAME = L"Toasty";
 const wchar_t* PROTOCOL_NAME = L"toasty";
+const wchar_t* VERSION = L"0.3.0";
+const wchar_t* GITHUB_REPO_OWNER = L"shanselman";
+const wchar_t* GITHUB_REPO_NAME = L"toasty";
 
 struct AppPreset {
     std::wstring name;
@@ -273,13 +282,247 @@ const AppPreset* detect_preset_from_ancestors(bool debug = false) {
     return nullptr;
 }
 
+// Parse semantic version string (e.g., "0.3.0" or "v0.3.0")
+struct Version {
+    int major = 0;
+    int minor = 0;
+    int patch = 0;
+    
+    bool operator>(const Version& other) const {
+        if (major != other.major) return major > other.major;
+        if (minor != other.minor) return minor > other.minor;
+        return patch > other.patch;
+    }
+    
+    bool operator==(const Version& other) const {
+        return major == other.major && minor == other.minor && patch == other.patch;
+    }
+};
+
+Version parse_version(const std::wstring& version_str) {
+    Version v;
+    std::wstring str = version_str;
+    
+    // Remove 'v' prefix if present
+    if (!str.empty() && str[0] == L'v') {
+        str = str.substr(1);
+    }
+    
+    // Parse version components
+    size_t pos = 0;
+    size_t dot_pos = str.find(L'.');
+    if (dot_pos != std::wstring::npos) {
+        v.major = std::stoi(str.substr(pos, dot_pos - pos));
+        pos = dot_pos + 1;
+        
+        dot_pos = str.find(L'.', pos);
+        if (dot_pos != std::wstring::npos) {
+            v.minor = std::stoi(str.substr(pos, dot_pos - pos));
+            pos = dot_pos + 1;
+            
+            v.patch = std::stoi(str.substr(pos));
+        } else {
+            v.minor = std::stoi(str.substr(pos));
+        }
+    } else if (!str.empty()) {
+        v.major = std::stoi(str);
+    }
+    
+    return v;
+}
+
+// Download file from URL using WinINet
+bool download_file(const std::wstring& url, const std::wstring& output_path) {
+    HINTERNET hInternet = InternetOpenW(L"Toasty Updater", INTERNET_OPEN_TYPE_DIRECT, nullptr, nullptr, 0);
+    if (!hInternet) {
+        return false;
+    }
+    
+    HINTERNET hUrl = InternetOpenUrlW(hInternet, url.c_str(), nullptr, 0, 
+                                       INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+    if (!hUrl) {
+        InternetCloseHandle(hInternet);
+        return false;
+    }
+    
+    std::ofstream outFile(output_path, std::ios::binary);
+    if (!outFile) {
+        InternetCloseHandle(hUrl);
+        InternetCloseHandle(hInternet);
+        return false;
+    }
+    
+    char buffer[4096];
+    DWORD bytesRead;
+    while (InternetReadFile(hUrl, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
+        outFile.write(buffer, bytesRead);
+    }
+    
+    outFile.close();
+    InternetCloseHandle(hUrl);
+    InternetCloseHandle(hInternet);
+    
+    return outFile.good();
+}
+
+// Detect current architecture
+std::wstring get_architecture() {
+    SYSTEM_INFO sysInfo;
+    GetNativeSystemInfo(&sysInfo);
+    
+    switch (sysInfo.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_AMD64:
+            return L"x64";
+        case PROCESSOR_ARCHITECTURE_ARM64:
+            return L"arm64";
+        default:
+            return L"x64"; // Default to x64
+    }
+}
+
+// Query GitHub API for latest release
+std::wstring get_latest_version() {
+    std::wstring api_url = L"https://api.github.com/repos/" + 
+                           std::wstring(GITHUB_REPO_OWNER) + L"/" + 
+                           std::wstring(GITHUB_REPO_NAME) + L"/releases/latest";
+    
+    HINTERNET hInternet = InternetOpenW(L"Toasty Updater", INTERNET_OPEN_TYPE_DIRECT, nullptr, nullptr, 0);
+    if (!hInternet) {
+        return L"";
+    }
+    
+    HINTERNET hUrl = InternetOpenUrlW(hInternet, api_url.c_str(), nullptr, 0,
+                                       INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+    if (!hUrl) {
+        InternetCloseHandle(hInternet);
+        return L"";
+    }
+    
+    std::string json_response;
+    char buffer[4096];
+    DWORD bytesRead;
+    while (InternetReadFile(hUrl, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
+        json_response.append(buffer, bytesRead);
+    }
+    
+    InternetCloseHandle(hUrl);
+    InternetCloseHandle(hInternet);
+    
+    if (json_response.empty()) {
+        return L"";
+    }
+    
+    try {
+        auto json = JsonObject::Parse(to_hstring(json_response));
+        if (json.HasKey(L"tag_name")) {
+            return json.GetNamedString(L"tag_name").c_str();
+        }
+    } catch (...) {
+        // Failed to parse JSON
+        return L"";
+    }
+    
+    return L"";
+}
+
+// Check for updates and optionally download
+void handle_update(bool auto_update) {
+    std::wcout << L"Current version: " << VERSION << L"\n";
+    std::wcout << L"Checking for updates...\n";
+    
+    std::wstring latest_tag = get_latest_version();
+    if (latest_tag.empty()) {
+        std::wcerr << L"Error: Could not check for updates. Please check your internet connection.\n";
+        return;
+    }
+    
+    Version current = parse_version(VERSION);
+    Version latest = parse_version(latest_tag);
+    
+    std::wcout << L"Latest version: " << latest_tag << L"\n";
+    
+    if (latest == current) {
+        std::wcout << L"You are already running the latest version.\n";
+        return;
+    }
+    
+    if (latest > current) {
+        std::wcout << L"A new version is available!\n";
+        
+        if (!auto_update) {
+            std::wcout << L"\nTo update, run: toasty --update\n";
+            std::wcout << L"Or download from: https://github.com/" << GITHUB_REPO_OWNER 
+                       << L"/" << GITHUB_REPO_NAME << L"/releases/latest\n";
+            return;
+        }
+        
+        // Perform update
+        std::wcout << L"\nDownloading update...\n";
+        
+        std::wstring arch = get_architecture();
+        std::wstring download_url = L"https://github.com/" + 
+                                    std::wstring(GITHUB_REPO_OWNER) + L"/" + 
+                                    std::wstring(GITHUB_REPO_NAME) + L"/releases/download/" + 
+                                    latest_tag + L"/toasty-" + arch + L".exe";
+        
+        // Get current exe path
+        wchar_t currentExePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, currentExePath, MAX_PATH);
+        
+        // Create temp file path
+        wchar_t tempPath[MAX_PATH];
+        GetTempPathW(MAX_PATH, tempPath);
+        std::wstring tempFile = std::wstring(tempPath) + L"toasty-update.exe";
+        
+        if (!download_file(download_url, tempFile)) {
+            std::wcerr << L"Error: Failed to download update.\n";
+            return;
+        }
+        
+        std::wcout << L"Download complete. Installing update...\n";
+        
+        // Create batch script to replace the exe
+        std::wstring batchFile = std::wstring(tempPath) + L"toasty-update.bat";
+        std::wofstream batch(batchFile);
+        if (!batch) {
+            std::wcerr << L"Error: Failed to create update script.\n";
+            return;
+        }
+        
+        batch << L"@echo off\n";
+        batch << L"timeout /t 1 /nobreak >nul\n";
+        batch << L"move /y \"" << tempFile << L"\" \"" << currentExePath << L"\"\n";
+        batch << L"del \"%~f0\"\n";
+        batch.close();
+        
+        // Launch batch script and exit
+        std::wcout << L"Update will be installed when you close this window.\n";
+        
+        SHELLEXECUTEINFOW sei = { sizeof(sei) };
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+        sei.lpVerb = L"open";
+        sei.lpFile = batchFile.c_str();
+        sei.nShow = SW_HIDE;
+        
+        if (ShellExecuteExW(&sei)) {
+            std::wcout << L"Update installed successfully! Please restart toasty.\n";
+        } else {
+            std::wcerr << L"Error: Failed to install update.\n";
+        }
+    } else {
+        std::wcout << L"You are running a newer version than the latest release.\n";
+    }
+}
+
 void print_usage() {
     std::wcout << L"toasty - Windows toast notification CLI\n\n"
                << L"Usage:\n"
                << L"  toasty <message> [options]\n"
                << L"  toasty --install [agent]\n"
                << L"  toasty --uninstall\n"
-               << L"  toasty --status\n\n"
+               << L"  toasty --status\n"
+               << L"  toasty --update\n"
+               << L"  toasty --version\n\n"
                << L"Options:\n"
                << L"  -t, --title <text>   Set notification title (default: \"Notification\")\n"
                << L"  --app <name>         Use AI CLI preset (claude, copilot, gemini, codex, cursor)\n"
@@ -288,6 +531,8 @@ void print_usage() {
                << L"  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)\n"
                << L"  --uninstall          Remove hooks from all AI CLI agents\n"
                << L"  --status             Show installation status\n"
+               << L"  --update             Check for updates and install if available\n"
+               << L"  --version            Show current version\n"
                << L"  --register           Re-register app for notifications (troubleshooting)\n\n"
                << L"Note: Toasty auto-detects known parent processes (Claude, Copilot, etc.)\n"
                << L"      and applies the appropriate preset automatically. Use --app to override.\n\n"
@@ -296,7 +541,8 @@ void print_usage() {
                << L"  toasty \"Task done\" -t \"Custom Title\"\n"
                << L"  toasty \"Analysis complete\" --app claude\n"
                << L"  toasty --install\n"
-               << L"  toasty --status\n";
+               << L"  toasty --status\n"
+               << L"  toasty --update\n";
 }
 
 std::wstring escape_xml(const std::wstring& text) {
@@ -1360,6 +1606,8 @@ int wmain(int argc, wchar_t* argv[]) {
     bool doStatus = false;
     bool doFocus = false;
     bool doRegister = false;
+    bool doUpdate = false;
+    bool doVersion = false;
     std::wstring installAgent;
     bool explicitApp = false;  // Track if user explicitly set --app
     bool explicitTitle = false; // Track if user explicitly set -t
@@ -1408,6 +1656,12 @@ int wmain(int argc, wchar_t* argv[]) {
         }
         else if (arg == L"--register") {
             doRegister = true;
+        }
+        else if (arg == L"--update") {
+            doUpdate = true;
+        }
+        else if (arg == L"--version" || arg == L"-v") {
+            doVersion = true;
         }
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
@@ -1469,6 +1723,16 @@ int wmain(int argc, wchar_t* argv[]) {
     if (doStatus) {
         init_apartment();
         show_status();
+        return 0;
+    }
+
+    if (doVersion) {
+        std::wcout << L"toasty version " << VERSION << L"\n";
+        return 0;
+    }
+
+    if (doUpdate) {
+        handle_update(true);
         return 0;
     }
 
