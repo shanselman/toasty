@@ -3,22 +3,46 @@
   <!-- Background -->
   <rect width="256" height="256" fill="none"/>
   
-  <!-- Toast slice - realistic bread shape with slightly wavy edges -->
-  <path d="M 60 80 Q 58 75 62 72 L 194 72 Q 198 75 196 80 L 196 200 Q 198 205 194 208 L 62 208 Q 58 205 60 200 Z" 
+  <!-- Toast slice - organic bread shape with natural curves like real toast -->
+  <path d="M 65 85 
+           Q 60 82 58 78 Q 56 74 60 70 Q 64 68 70 68
+           L 95 68 Q 100 67 105 68
+           L 150 68 Q 155 67 160 68
+           L 186 68 Q 192 68 196 70 Q 200 74 198 78 Q 196 82 191 85
+           L 191 115 Q 192 120 191 125
+           L 191 165 Q 192 170 191 175
+           L 191 195 Q 196 198 198 202 Q 200 206 196 210 Q 192 212 186 212
+           L 160 212 Q 155 213 150 212
+           L 105 212 Q 100 213 95 212
+           L 70 212 Q 64 212 60 210 Q 56 206 58 202 Q 60 198 65 195
+           L 65 175 Q 64 170 65 165
+           L 65 125 Q 64 120 65 115
+           Z" 
         fill="#E8B870" stroke="#C68642" stroke-width="3"/>
   
-  <!-- Darker crust edges -->
-  <path d="M 60 80 Q 58 75 62 72 L 194 72 Q 198 75 196 80 L 196 88 L 60 88 Z" 
+  <!-- Darker crust top edge -->
+  <path d="M 65 85 
+           Q 60 82 58 78 Q 56 74 60 70 Q 64 68 70 68
+           L 95 68 Q 100 67 105 68
+           L 150 68 Q 155 67 160 68
+           L 186 68 Q 192 68 196 70 Q 200 74 198 78 Q 196 82 191 85
+           L 65 85 Z" 
         fill="#C68642" opacity="0.9"/>
-  <path d="M 60 200 L 60 208 Q 58 205 62 208 L 194 208 Q 198 205 196 208 L 196 200 Z" 
+  
+  <!-- Darker crust bottom edge -->
+  <path d="M 65 195 
+           L 191 195 Q 196 198 198 202 Q 200 206 196 210 Q 192 212 186 212
+           L 160 212 Q 155 213 150 212
+           L 105 212 Q 100 213 95 212
+           L 70 212 Q 64 212 60 210 Q 56 206 58 202 Q 60 198 65 195 Z" 
         fill="#C68642" opacity="0.9"/>
   
   <!-- Left crust edge -->
-  <path d="M 60 80 L 60 200 L 68 200 L 68 80 Z" 
+  <path d="M 65 85 L 65 195 L 73 195 Q 73 140 73 85 Z" 
         fill="#C68642" opacity="0.6"/>
   
   <!-- Right crust edge -->
-  <path d="M 196 80 L 196 200 L 188 200 L 188 80 Z" 
+  <path d="M 191 85 Q 191 140 191 195 L 183 195 L 183 85 Z" 
         fill="#C68642" opacity="0.6"/>
   
   <!-- Toast texture - small brown spots to simulate toasted bread -->
