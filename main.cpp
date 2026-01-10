@@ -9,6 +9,8 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <fstream>
+#include "resource.h"
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
@@ -21,17 +23,83 @@ using namespace Windows::UI::Notifications;
 const wchar_t* APP_ID = L"Toasty.CLI.Notification";
 const wchar_t* APP_NAME = L"Toasty";
 
+struct AppPreset {
+    std::wstring name;
+    std::wstring title;
+    int iconResourceId;
+};
+
+const AppPreset APP_PRESETS[] = {
+    { L"claude", L"Claude", IDI_CLAUDE },
+    { L"copilot", L"GitHub Copilot", IDI_COPILOT },
+    { L"gemini", L"Gemini", IDI_GEMINI },
+    { L"codex", L"Codex", IDI_CODEX },
+    { L"cursor", L"Cursor", IDI_CURSOR }
+};
+
+// Extract embedded PNG resource to temp file and return path
+std::wstring extract_icon_to_temp(int resourceId) {
+    HRSRC hResource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
+    if (!hResource) return L"";
+    
+    HGLOBAL hLoadedResource = LoadResource(nullptr, hResource);
+    if (!hLoadedResource) return L"";
+    
+    LPVOID pLockedResource = LockResource(hLoadedResource);
+    if (!pLockedResource) return L"";
+    
+    DWORD resourceSize = SizeofResource(nullptr, hResource);
+    if (resourceSize == 0) return L"";
+    
+    // Create temp file path
+    wchar_t tempPath[MAX_PATH];
+    wchar_t tempFile[MAX_PATH];
+    GetTempPathW(MAX_PATH, tempPath);
+    
+    std::wstring fileName = L"toasty_icon_" + std::to_wstring(resourceId) + L".png";
+    wcscpy_s(tempFile, MAX_PATH, tempPath);
+    wcscat_s(tempFile, MAX_PATH, fileName.c_str());
+    
+    // Write resource data to temp file
+    std::ofstream file(tempFile, std::ios::binary);
+    if (!file) return L"";
+    
+    file.write(static_cast<const char*>(pLockedResource), resourceSize);
+    file.close();
+    
+    return tempFile;
+}
+
+// Find preset by name (case-insensitive)
+const AppPreset* find_preset(const std::wstring& name) {
+    std::wstring lowerName = name;
+    for (auto& c : lowerName) c = towlower(c);
+    
+    for (const auto& preset : APP_PRESETS) {
+        std::wstring presetName = preset.name;
+        for (auto& c : presetName) c = towlower(c);
+        if (presetName == lowerName) {
+            return &preset;
+        }
+    }
+    return nullptr;
+}
+
 void print_usage() {
     std::wcout << L"toasty - Windows toast notification CLI\n\n"
                << L"Usage: toasty <message> [options]\n\n"
                << L"Options:\n"
                << L"  -t, --title <text>   Set notification title (default: \"Notification\")\n"
+               << L"  --app <name>         Use AI CLI preset (claude, copilot, gemini, codex, cursor)\n"
+               << L"  -i, --icon <path>    Custom icon path (PNG recommended, 48x48px)\n"
                << L"  -h, --help           Show this help\n"
                << L"  --register           Register app for notifications (run once)\n\n"
                << L"Examples:\n"
                << L"  toasty --register\n"
                << L"  toasty \"Build completed\"\n"
-               << L"  toasty \"Task done\" -t \"Claude Code\"\n";
+               << L"  toasty \"Task done\" -t \"Claude Code\"\n"
+               << L"  toasty \"Analysis complete\" --app claude\n"
+               << L"  toasty \"Build succeeded\" --app copilot\n";
 }
 
 std::wstring escape_xml(const std::wstring& text) {
@@ -176,6 +244,7 @@ int wmain(int argc, wchar_t* argv[]) {
 
     std::wstring message;
     std::wstring title = L"Notification";
+    std::wstring iconPath;
     bool doRegister = false;
 
     for (int i = 1; i < argc; i++) {
@@ -191,6 +260,31 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            }
+        }
+        else if (arg == L"--app") {
+            if (i + 1 < argc) {
+                std::wstring appName = argv[++i];
+                const AppPreset* preset = find_preset(appName);
+                if (preset) {
+                    title = preset->title;
+                    iconPath = extract_icon_to_temp(preset->iconResourceId);
+                } else {
+                    std::wcerr << L"Error: Unknown app preset '" << appName << L"'\n";
+                    std::wcerr << L"Available presets: claude, copilot, gemini, codex, cursor\n";
+                    return 1;
+                }
+            }
+        }
+        else if (arg == L"-i" || arg == L"--icon") {
+            if (i + 1 < argc) {
+                iconPath = argv[++i];
+                // Convert relative path to absolute
+                std::filesystem::path p(iconPath);
+                if (!p.is_absolute()) {
+                    p = std::filesystem::absolute(p);
+                }
+                iconPath = p.wstring();
             }
         }
         else if (arg[0] != L'-' && message.empty()) {
@@ -223,10 +317,17 @@ int wmain(int argc, wchar_t* argv[]) {
         // Set our AppUserModelId for this process
         SetCurrentProcessExplicitAppUserModelID(APP_ID);
 
-        std::wstring xml = L"<toast><visual><binding template=\"ToastGeneric\">"
-                          L"<text>" + escape_xml(title) + L"</text>"
-                          L"<text>" + escape_xml(message) + L"</text>"
-                          L"</binding></visual></toast>";
+        // Build toast XML with optional icon
+        std::wstring xml = L"<toast><visual><binding template=\"ToastGeneric\">";
+        
+        // Add icon if provided
+        if (!iconPath.empty()) {
+            xml += L"<image placement=\"appLogoOverride\" src=\"" + escape_xml(iconPath) + L"\"/>";
+        }
+        
+        xml += L"<text>" + escape_xml(title) + L"</text>"
+               L"<text>" + escape_xml(message) + L"</text>"
+               L"</binding></visual></toast>";
 
         XmlDocument doc;
         doc.LoadXml(xml);

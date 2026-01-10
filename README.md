@@ -17,8 +17,43 @@ toasty <message> [options]
 
 Options:
   -t, --title <text>   Set notification title (default: "Notification")
+  --app <name>         Use AI CLI preset (claude, copilot, gemini, codex, cursor)
+  -i, --icon <path>    Custom icon path (PNG recommended, 48x48px)
   -h, --help           Show this help
 ```
+
+## AI CLI Presets
+
+Toasty includes built-in presets for popular AI tools with custom icons:
+
+```cmd
+# Claude Code
+toasty "Analysis complete" --app claude
+
+# GitHub Copilot
+toasty "Code review done" --app copilot
+
+# Google Gemini
+toasty "Processing finished" --app gemini
+
+# OpenAI Codex
+toasty "Generation complete" --app codex
+
+# Cursor IDE
+toasty "Build succeeded" --app cursor
+```
+
+Each preset includes a distinctive icon and default title.
+
+## Custom Icons
+
+You can also use your own icons:
+
+```cmd
+toasty "Task complete" -i "C:\path\to\icon.png"
+```
+
+Icons should be 48x48 pixels for best results. PNG format recommended.
 
 ## Claude Code Integration
 
