@@ -25,11 +25,15 @@ void print_usage() {
     std::wcout << L"toasty - Windows toast notification CLI\n\n"
                << L"Usage: toasty <message> [options]\n\n"
                << L"Options:\n"
-               << L"  -t, --title <text>   Set notification title (default: \"Notification\")\n"
-               << L"  -h, --help           Show this help\n\n"
+               << L"  -t, --title <text>    Set notification title (default: \"Notification\")\n"
+               << L"  -s, --style <type>    Set visual style: success, error, warning\n"
+               << L"  -h, --help            Show this help\n\n"
                << L"Examples:\n"
                << L"  toasty \"Build completed\"\n"
-               << L"  toasty \"Task done\" -t \"Claude Code\"\n";
+               << L"  toasty \"Task done\" -t \"Claude Code\"\n"
+               << L"  toasty \"Build passed\" --style success\n"
+               << L"  toasty \"Tests failed\" --style error\n"
+               << L"  toasty \"Deprecation notice\" --style warning\n";
 }
 
 std::wstring escape_xml(const std::wstring& text) {
@@ -174,6 +178,7 @@ int wmain(int argc, wchar_t* argv[]) {
 
     std::wstring message;
     std::wstring title = L"Notification";
+    std::wstring style;
     bool doRegister = false;
 
     for (int i = 1; i < argc; i++) {
@@ -189,6 +194,11 @@ int wmain(int argc, wchar_t* argv[]) {
         else if (arg == L"-t" || arg == L"--title") {
             if (i + 1 < argc) {
                 title = argv[++i];
+            }
+        }
+        else if (arg == L"-s" || arg == L"--style") {
+            if (i + 1 < argc) {
+                style = argv[++i];
             }
         }
         else if (arg[0] != L'-' && message.empty()) {
@@ -221,10 +231,35 @@ int wmain(int argc, wchar_t* argv[]) {
         // Set our AppUserModelId for this process
         SetCurrentProcessExplicitAppUserModelID(APP_ID);
 
-        std::wstring xml = L"<toast><visual><binding template=\"ToastGeneric\">"
-                          L"<text>" + escape_xml(title) + L"</text>"
-                          L"<text>" + escape_xml(message) + L"</text>"
-                          L"</binding></visual></toast>";
+        // Apply style: add emoji to title and set scenario
+        std::wstring emoji;
+        std::wstring scenario;
+        
+        if (!style.empty()) {
+            if (style == L"success") {
+                emoji = L"✅ ";
+                scenario = L"default";
+            }
+            else if (style == L"error") {
+                emoji = L"❌ ";
+                scenario = L"urgent";
+            }
+            else if (style == L"warning") {
+                emoji = L"⚠️ ";
+                scenario = L"default";
+            }
+        }
+
+        std::wstring displayTitle = emoji + title;
+
+        std::wstring xml = L"<toast";
+        if (!scenario.empty()) {
+            xml += L" scenario=\"" + scenario + L"\"";
+        }
+        xml += L"><visual><binding template=\"ToastGeneric\">"
+               L"<text>" + escape_xml(displayTitle) + L"</text>"
+               L"<text>" + escape_xml(message) + L"</text>"
+               L"</binding></visual></toast>";
 
         XmlDocument doc;
         doc.LoadXml(xml);
