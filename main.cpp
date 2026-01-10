@@ -39,7 +39,7 @@ const AppPreset APP_PRESETS[] = {
 
 // Extract embedded PNG resource to temp file and return path
 std::wstring extract_icon_to_temp(int resourceId) {
-    HRSRC hResource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
+    HRSRC hResource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(10));
     if (!hResource) return L"";
     
     HGLOBAL hLoadedResource = LoadResource(nullptr, hResource);
