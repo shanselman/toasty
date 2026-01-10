@@ -489,7 +489,7 @@ bool install_claude(const std::wstring& exePath) {
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
 
     std::wstring escapedPath = escape_json_string(exePath);
-    std::wstring command = escapedPath + L" \"Claude needs attention\" -t \"Claude Code\"";
+    std::wstring command = escapedPath + L" \"Task complete\" -t \"Claude Code\"";
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
     innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
 
