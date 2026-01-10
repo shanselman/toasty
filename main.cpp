@@ -92,69 +92,67 @@ const AppPreset* find_preset(const std::wstring& name) {
     return nullptr;
 }
 
-// Get parent process name
-std::wstring get_parent_process_name() {
-    DWORD currentPid = GetCurrentProcessId();
-    DWORD parentPid = 0;
-    
+// Walk up process tree to find a matching AI CLI preset
+const AppPreset* detect_preset_from_ancestors() {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE) {
-        return L"";
-    }
-    
-    PROCESSENTRY32W pe32;
-    pe32.dwSize = sizeof(PROCESSENTRY32W);
-    
-    // Find current process to get parent PID
-    if (Process32FirstW(snapshot, &pe32)) {
-        do {
-            if (pe32.th32ProcessID == currentPid) {
-                parentPid = pe32.th32ParentProcessID;
-                break;
-            }
-        } while (Process32NextW(snapshot, &pe32));
-    }
-    
-    if (parentPid == 0) {
-        CloseHandle(snapshot);
-        return L"";
-    }
-    
-    // Find parent process to get its name
-    pe32.dwSize = sizeof(PROCESSENTRY32W);
-    if (Process32FirstW(snapshot, &pe32)) {
-        do {
-            if (pe32.th32ProcessID == parentPid) {
-                CloseHandle(snapshot);
-                
-                // Extract just the filename without extension
-                std::wstring exeName = pe32.szExeFile;
-                size_t dotPos = exeName.find_last_of(L'.');
-                if (dotPos != std::wstring::npos) {
-                    exeName = exeName.substr(0, dotPos);
-                }
-                
-                // Convert to lowercase for matching
-                for (auto& c : exeName) c = towlower(c);
-                
-                return exeName;
-            }
-        } while (Process32NextW(snapshot, &pe32));
-    }
-    
-    CloseHandle(snapshot);
-    return L"";
-}
-
-// Detect preset from parent process
-const AppPreset* detect_preset_from_parent() {
-    std::wstring parentName = get_parent_process_name();
-    if (parentName.empty()) {
         return nullptr;
     }
-    
-    // Try to find a preset matching the parent process name
-    return find_preset(parentName);
+
+    DWORD currentPid = GetCurrentProcessId();
+
+    // Walk up the process tree (max 20 levels to avoid infinite loops)
+    for (int depth = 0; depth < 20; depth++) {
+        PROCESSENTRY32W pe32;
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+        DWORD parentPid = 0;
+
+        // Find current process to get parent PID
+        if (Process32FirstW(snapshot, &pe32)) {
+            do {
+                if (pe32.th32ProcessID == currentPid) {
+                    parentPid = pe32.th32ParentProcessID;
+                    break;
+                }
+            } while (Process32NextW(snapshot, &pe32));
+        }
+
+        if (parentPid == 0 || parentPid == currentPid) {
+            break;  // Reached root or loop
+        }
+
+        // Find parent process name
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+        if (Process32FirstW(snapshot, &pe32)) {
+            do {
+                if (pe32.th32ProcessID == parentPid) {
+                    // Extract just the filename without extension
+                    std::wstring exeName = pe32.szExeFile;
+                    size_t dotPos = exeName.find_last_of(L'.');
+                    if (dotPos != std::wstring::npos) {
+                        exeName = exeName.substr(0, dotPos);
+                    }
+
+                    // Convert to lowercase for matching
+                    for (auto& c : exeName) c = towlower(c);
+
+                    // Check if this matches a preset
+                    const AppPreset* preset = find_preset(exeName);
+                    if (preset) {
+                        CloseHandle(snapshot);
+                        return preset;
+                    }
+                    break;
+                }
+            } while (Process32NextW(snapshot, &pe32));
+        }
+
+        // Move up to parent
+        currentPid = parentPid;
+    }
+
+    CloseHandle(snapshot);
+    return nullptr;
 }
 
 void print_usage() {
@@ -324,7 +322,7 @@ int wmain(int argc, wchar_t* argv[]) {
     bool explicitTitle = false; // Track if user explicitly set -t
 
     // Auto-detect parent process and apply preset if found
-    const AppPreset* autoPreset = detect_preset_from_parent();
+    const AppPreset* autoPreset = detect_preset_from_ancestors();
     if (autoPreset) {
         title = autoPreset->title;
         iconPath = extract_icon_to_temp(autoPreset->iconResourceId);
