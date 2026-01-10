@@ -7,7 +7,7 @@ This implementation adds support for AI CLI tool presets with bundled icons to t
 ## Implementation Details
 
 ### Icon Resources
-- 5 PNG icons (48x48px) embedded as RCDATA resources in the executable
+- 6 PNG icons (48x48px) embedded as RCDATA resources in the executable
 - Icons stored in `/icons` directory and compiled into the exe via resource.rc
 - Each icon has a unique resource ID defined in resource.h
 
@@ -17,6 +17,7 @@ This implementation adds support for AI CLI tool presets with bundled icons to t
 3. **Gemini** (IDI_GEMINI) - Purple with "GM" text
 4. **Codex** (IDI_CODEX) - Green with "CX" text
 5. **Cursor** (IDI_CURSOR) - Black with "CR" text
+6. **OpenCode** (IDI_OPENCODE) - OpenCode logo from official repository
 
 ### Auto-Detection Feature
 
