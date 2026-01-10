@@ -26,3 +26,9 @@ target_compile_options(toasty PRIVATE
 target_link_options(toasty PRIVATE
     $<$<CONFIG:Release>:/LTCG /OPT:REF /OPT:ICF>
 )
+
+# Add tests subdirectory (optional - only if BUILD_TESTING is enabled)
+option(BUILD_TESTING "Build the testing tree." ON)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

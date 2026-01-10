@@ -180,6 +180,21 @@ cmake --build build --config Release
 
 Output: `build\Release\toasty.exe`
 
+## Testing
+
+Toasty includes comprehensive unit tests and integration tests. See [TESTING.md](TESTING.md) for details.
+
+```cmd
+# Build and run unit tests
+cmake --build build --config Release --target toasty_tests
+cd build
+ctest -C Release --output-on-failure
+
+# Run integration tests (PowerShell)
+cd tests\integration
+.\run_integration_tests.ps1
+```
+
 ## License
 
 MIT
