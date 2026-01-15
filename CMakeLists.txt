@@ -17,6 +17,7 @@ target_link_libraries(toasty PRIVATE
     shell32
     ole32
     propsys
+    wininet
 )
 
 # Optimize for size in Release
