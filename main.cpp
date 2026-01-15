@@ -733,15 +733,25 @@ std::string get_toml_notify_post_turn(const std::string& tomlContent) {
         if (inNotifySection && line.find("post_turn") == 0) {
             size_t eqPos = line.find('=');
             if (eqPos != std::string::npos) {
+                // Verify it's actually "post_turn" followed by whitespace or '='
+                std::string beforeEq = line.substr(0, eqPos);
+                size_t start = beforeEq.find_first_not_of(" \t\r\n");
+                size_t end = beforeEq.find_last_not_of(" \t\r\n");
+                if (start != std::string::npos) {
+                    beforeEq = beforeEq.substr(start, end - start + 1);
+                    if (beforeEq != "post_turn") continue; // Not exact match
+                }
+                
                 std::string value = line.substr(eqPos + 1);
                 // Trim whitespace
                 start = value.find_first_not_of(" \t\r\n");
                 if (start != std::string::npos) {
                     value = value.substr(start);
-                    // Remove quotes if present
+                    // Remove quotes if present - match opening and closing quote type
                     if (!value.empty() && (value[0] == '"' || value[0] == '\'')) {
+                        char quoteChar = value[0];
                         value = value.substr(1);
-                        size_t endQuote = value.find_last_of("\"'");
+                        size_t endQuote = value.find_last_of(quoteChar);
                         if (endQuote != std::string::npos) {
                             value = value.substr(0, endQuote);
                         }
@@ -788,10 +798,24 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
         
         // If in [notify] section, check for post_turn
         if (inNotifySection && !trimmed.empty() && trimmed.find("post_turn") == 0) {
-            // Replace existing post_turn
-            result << "post_turn = \"" << value << "\"\n";
-            foundPostTurn = true;
-            continue;
+            // Verify it's actually "post_turn" followed by whitespace or '='
+            size_t eqPos = trimmed.find('=');
+            if (eqPos != std::string::npos) {
+                std::string beforeEq = trimmed.substr(0, eqPos);
+                size_t start = beforeEq.find_first_not_of(" \t\r\n");
+                size_t end = beforeEq.find_last_not_of(" \t\r\n");
+                if (start != std::string::npos) {
+                    beforeEq = beforeEq.substr(start, end - start + 1);
+                    if (beforeEq != "post_turn") {
+                        result << line << "\n";
+                        continue; // Not exact match, keep the line
+                    }
+                }
+                // Replace existing post_turn
+                result << "post_turn = \"" << value << "\"\n";
+                foundPostTurn = true;
+                continue;
+            }
         }
         
         result << line << "\n";
@@ -835,9 +859,23 @@ std::string remove_toml_notify_post_turn(const std::string& tomlContent) {
         
         // If in [notify] section and line is post_turn with toasty, skip it
         if (inNotifySection && !trimmed.empty() && trimmed.find("post_turn") == 0) {
-            // Check if it contains toasty
-            if (line.find("toasty") != std::string::npos) {
-                continue; // Skip this line
+            // Verify it's actually "post_turn" followed by whitespace or '='
+            size_t eqPos = trimmed.find('=');
+            if (eqPos != std::string::npos) {
+                std::string beforeEq = trimmed.substr(0, eqPos);
+                size_t start = beforeEq.find_first_not_of(" \t\r\n");
+                size_t end = beforeEq.find_last_not_of(" \t\r\n");
+                if (start != std::string::npos) {
+                    beforeEq = beforeEq.substr(start, end - start + 1);
+                    if (beforeEq != "post_turn") {
+                        result << line << "\n";
+                        continue; // Not exact match, keep the line
+                    }
+                }
+                // Check if it contains toasty
+                if (line.find("toasty") != std::string::npos) {
+                    continue; // Skip this line
+                }
             }
         }
         
