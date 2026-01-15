@@ -795,6 +795,9 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
     bool foundPostTurn = false;
     bool notifySectionExists = false;
     
+    // Escape the value for TOML
+    std::string escapedValue = escape_toml_string(value);
+    
     while (std::getline(stream, line)) {
         std::string trimmed = line;
         size_t start = trimmed.find_first_not_of(" \t\r\n");
@@ -807,7 +810,7 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
         if (!trimmed.empty() && trimmed[0] == '[') {
             if (inNotifySection && !foundPostTurn) {
                 // Add post_turn before leaving [notify] section
-                result << "post_turn = \"" << value << "\"\n";
+                result << "post_turn = \"" << escapedValue << "\"\n";
                 foundPostTurn = true;
             }
             inNotifySection = (trimmed == "[notify]");
@@ -821,7 +824,7 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
         // If in [notify] section, check for post_turn
         if (inNotifySection && !trimmed.empty() && is_post_turn_key(trimmed)) {
             // Replace existing post_turn
-            result << "post_turn = \"" << value << "\"\n";
+            result << "post_turn = \"" << escapedValue << "\"\n";
             foundPostTurn = true;
             continue;
         }
@@ -831,13 +834,13 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
     
     // If we were still in [notify] section at the end and didn't find post_turn, add it
     if (inNotifySection && !foundPostTurn) {
-        result << "post_turn = \"" << value << "\"\n";
+        result << "post_turn = \"" << escapedValue << "\"\n";
     }
     
     // If [notify] section doesn't exist, add it at the end
     if (!notifySectionExists) {
         result << "\n[notify]\n";
-        result << "post_turn = \"" << value << "\"\n";
+        result << "post_turn = \"" << escapedValue << "\"\n";
     }
     
     return result.str();
@@ -1084,17 +1087,16 @@ bool install_codex(const std::wstring& exePath) {
     std::string exePathStr(size - 1, 0);
     WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, &exePathStr[0], size, nullptr, nullptr);
     
-    // Build complete command string and escape it for TOML
-    std::string rawCommand = exePathStr + " \"Codex finished\" -t \"OpenAI Codex\"";
-    std::string command = escape_toml_string(rawCommand);
+    // Build command string (will be escaped by set_toml_notify_post_turn)
+    std::string command = exePathStr + " \"Codex finished\" -t \"OpenAI Codex\"";
     
     // Update or create TOML config
     std::string newContent;
     if (existingContent.empty()) {
-        // Create new config with [notify] section
-        newContent = "[notify]\npost_turn = \"" + command + "\"\n";
+        // Create new config with [notify] section (escape for TOML)
+        newContent = "[notify]\npost_turn = \"" + escape_toml_string(command) + "\"\n";
     } else {
-        // Update existing config
+        // Update existing config (set_toml_notify_post_turn will escape)
         newContent = set_toml_notify_post_turn(existingContent, command);
     }
     
