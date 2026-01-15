@@ -724,7 +724,7 @@ std::string get_toml_notify_post_turn(const std::string& tomlContent) {
         line = line.substr(start, end - start + 1);
         
         // Check for section headers
-        if (line[0] == '[') {
+        if (!line.empty() && line[0] == '[') {
             inNotifySection = (line == "[notify]");
             continue;
         }
@@ -797,10 +797,9 @@ std::string set_toml_notify_post_turn(const std::string& tomlContent, const std:
         result << line << "\n";
     }
     
-    // If [notify] section existed but no post_turn was found, add it
-    if (notifySectionExists && !foundPostTurn) {
-        // The section already ended, we need to re-add it at the end
-        // This is a simplified approach - in real use, config should be well-formed
+    // If we were still in [notify] section at the end and didn't find post_turn, add it
+    if (inNotifySection && !foundPostTurn) {
+        result << "post_turn = \"" << value << "\"\n";
     }
     
     // If [notify] section doesn't exist, add it at the end
@@ -1053,7 +1052,7 @@ bool install_codex(const std::wstring& exePath) {
     std::string exePathStr(size - 1, 0);
     WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, &exePathStr[0], size, nullptr, nullptr);
     
-    // Build command - escape backslashes for TOML
+    // Build command - escape backslashes and quotes for TOML string
     std::string command = exePathStr;
     // Replace backslashes with double backslashes for TOML
     size_t pos = 0;
