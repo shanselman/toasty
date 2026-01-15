@@ -22,9 +22,9 @@ toasty --status
 
 Options:
   -t, --title <text>   Set notification title (default: "Notification")
-  --app <name>         Use AI CLI preset (claude, copilot, gemini)
+  --app <name>         Use AI CLI preset (claude, copilot, gemini, codex, cursor)
   -h, --help           Show this help
-  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)
+  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, codex, or all)
   --uninstall          Remove hooks from all AI CLI agents
   --status             Show installation status
 ```
@@ -37,6 +37,7 @@ Toasty automatically detects when it's called from a known AI CLI tool and appli
 - Claude Code
 - GitHub Copilot
 - Google Gemini CLI
+- OpenAI Codex
 
 ```cmd
 # Called from Claude - automatically uses Claude preset
@@ -44,6 +45,9 @@ toasty "Analysis complete"
 
 # Called from Copilot - automatically uses Copilot preset
 toasty "Code review done"
+
+# Called from Codex - automatically uses Codex preset
+toasty "Task finished"
 ```
 
 ### Manual Preset Selection
@@ -54,6 +58,7 @@ Override auto-detection with `--app`:
 toasty "Processing finished" --app claude
 toasty "Build succeeded" --app copilot
 toasty "Query done" --app gemini
+toasty "Code generated" --app codex
 ```
 
 ## One-Click Hook Installation
@@ -67,6 +72,7 @@ Toasty can automatically configure AI CLI agents to show notifications when task
 | Claude Code | `~/.claude/settings.json` | `Stop` | User |
 | Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
 | GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
+| OpenAI Codex | `~/.codex/config.toml` | `post_turn` | User |
 
 ### Auto-Install
 
@@ -78,6 +84,7 @@ toasty --install
 toasty --install claude
 toasty --install gemini
 toasty --install copilot
+toasty --install codex
 
 # Check what's installed
 toasty --status
@@ -93,10 +100,12 @@ Detecting AI CLI agents...
   [x] Claude Code found
   [x] Gemini CLI found
   [ ] GitHub Copilot (in current repo)
+  [x] OpenAI Codex found
 
 Installing toasty hooks...
   [x] Claude Code: Added Stop hook
   [x] Gemini CLI: Added AfterAgent hook
+  [x] OpenAI Codex: Added post_turn hook
 
 Done! You'll get notifications when AI agents finish.
 ```
@@ -167,6 +176,15 @@ Add to `.github/hooks/toasty.json`:
     ]
   }
 }
+```
+
+### OpenAI Codex
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[notify]
+post_turn = "C:\\path\\to\\toasty.exe \"Codex finished\" -t \"OpenAI Codex\""
 ```
 
 ## Building

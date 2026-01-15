@@ -1,7 +1,7 @@
 # Toasty - Session Context for Future Claude Sessions
 
 ## What is Toasty?
-A Windows CLI tool that shows toast notifications when AI coding agents (Claude Code, Gemini CLI, GitHub Copilot) finish tasks. Key feature: **click the toast to bring your terminal back to foreground**.
+A Windows CLI tool that shows toast notifications when AI coding agents (Claude Code, Gemini CLI, GitHub Copilot, OpenAI Codex) finish tasks. Key feature: **click the toast to bring your terminal back to foreground**.
 
 ## Why It Exists
 When using AI CLI agents, you alt-tab away while waiting. The agent finishes but you don't notice. Toasty solves this with:
@@ -78,10 +78,18 @@ Note: Same nested structure as Claude. Uses `AfterAgent` not `Stop`.
 }
 ```
 
+### OpenAI Codex (`~/.codex/config.toml`)
+```toml
+[notify]
+post_turn = "D:\\path\\to\\toasty.exe \"Codex finished\" -t \"OpenAI Codex\""
+```
+Note: Uses TOML format instead of JSON. The `post_turn` hook is called after each agent turn.
+
 ## Auto-Detection
 Toasty walks the process tree looking for known parent processes:
 - If launched by `claude.exe` -> uses Claude icon/title
 - If launched by node with `@google/gemini` in cmdline -> uses Gemini icon/title
+- If launched by `codex` process -> uses Codex icon/title
 - etc.
 
 This means you can just run `toasty "Done"` and it picks the right branding.
