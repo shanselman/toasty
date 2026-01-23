@@ -10,6 +10,7 @@ Add `toasty --install` to auto-detect AI CLI agents and configure their hooks to
 | Claude Code | `~/.claude/settings.json` | `Stop` | User |
 | Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
 | GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
+| OpenCode | `~/.config/opencode/plugin/toasty.js` | `session.idle` | User |
 
 ---
 
@@ -26,6 +27,10 @@ Add `toasty --install` to auto-detect AI CLI agents and configure their hooks to
 ### 1.3 Detect GitHub Copilot CLI
 - Check if `.github` folder exists in current directory
 - Check if `gh copilot` extension is installed (`gh extension list`)
+
+### 1.4 Detect OpenCode
+- Check if `%USERPROFILE%\.config\opencode` folder exists
+- Or check if `opencode` command is in PATH
 
 ---
 
@@ -98,6 +103,21 @@ Add `toasty --install` to auto-detect AI CLI agents and configure their hooks to
 }
 ```
 
+**OpenCode** (`~/.config/opencode/plugin/toasty.js`):
+```javascript
+export const ToastyPlugin = async ({ $ }) => {
+  const toastyPath = `C:/path/to/toasty.exe`
+
+  return {
+    event: async ({ event }) => {
+      if (event.type === "session.idle") {
+        await $`${toastyPath} "OpenCode finished" -t "OpenCode"`
+      }
+    },
+  }
+}
+```
+
 ---
 
 ## Phase 3: CLI Interface
@@ -108,6 +128,7 @@ toasty --install              # Auto-detect and install all found
 toasty --install claude       # Install only for Claude
 toasty --install gemini       # Install only for Gemini
 toasty --install copilot      # Install only for Copilot
+toasty --install opencode     # Install only for OpenCode
 toasty --uninstall            # Remove hooks from all
 toasty --status               # Show what's installed
 ```
@@ -118,10 +139,12 @@ Detecting AI CLI agents...
   ✓ Claude Code found
   ✓ Gemini CLI found
   ✗ GitHub Copilot CLI not found (not in a git repo)
+  ✓ OpenCode found
 
 Installing toasty hooks...
   ✓ Claude Code: Added Stop hook to ~/.claude/settings.json
   ✓ Gemini CLI: Added AfterAgent hook to ~/.gemini/settings.json
+  ✓ OpenCode: Added session.idle event hook to ~/.config/opencode/plugin/toasty.js
 
 Done! You'll get notifications when AI agents finish.
 ```

@@ -37,6 +37,7 @@ Toasty automatically detects when it's called from a known AI CLI tool and appli
 - Claude Code
 - GitHub Copilot
 - Google Gemini CLI
+- OpenCode
 
 ```cmd
 # Called from Claude - automatically uses Claude preset
@@ -67,6 +68,7 @@ Toasty can automatically configure AI CLI agents to show notifications when task
 | Claude Code | `~/.claude/settings.json` | `Stop` | User |
 | Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
 | GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
+| OpenCode | `~/.config/opencode/plugin/toasty.js` | `session.idle` | User |
 
 ### Auto-Install
 
@@ -78,6 +80,7 @@ toasty --install
 toasty --install claude
 toasty --install gemini
 toasty --install copilot
+toasty --install opencode
 
 # Check what's installed
 toasty --status
@@ -93,10 +96,12 @@ Detecting AI CLI agents...
   [x] Claude Code found
   [x] Gemini CLI found
   [ ] GitHub Copilot (in current repo)
+  [x] OpenCode found
 
 Installing toasty hooks...
   [x] Claude Code: Added Stop hook
   [x] Gemini CLI: Added AfterAgent hook
+  [x] OpenCode: Added session.idle event hook
 
 Done! You'll get notifications when AI agents finish.
 ```
@@ -165,6 +170,24 @@ Add to `.github/hooks/toasty.json`:
         "timeoutSec": 5
       }
     ]
+  }
+}
+```
+
+### OpenCode
+
+Add to `~/.config/opencode/plugin/toasty.js`:
+
+```javascript
+export const ToastyPlugin = async ({ $ }) => {
+  const toastyPath = `C:/path/to/toasty.exe`
+
+  return {
+    event: async ({ event }) => {
+      if (event.type === "session.idle") {
+        await $`${toastyPath} "OpenCode finished" -t "OpenCode"`
+      }
+    },
   }
 }
 ```

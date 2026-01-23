@@ -12,3 +12,4 @@
 #define IDI_GEMINI   103
 #define IDI_CODEX    104
 #define IDI_CURSOR   105
+#define IDI_OPENCODE 106
