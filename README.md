@@ -19,21 +19,27 @@ That's it. On Windows, Toasty auto-registers on first run.
 
 ### Windows
 
-Download `toasty.exe` from [Releases](../../releases) or build from source.
+Download `toasty-x64.exe` or `toasty-arm64.exe` from [Releases](../../releases).
 
 ### macOS
 
-1. **Install terminal-notifier** (required for notifications):
+1. **Download toasty** from [Releases](../../releases):
+   - `toasty-macos` - Universal binary (Intel + Apple Silicon)
+   - `toasty-macos-x64` - Intel Macs only
+   - `toasty-macos-arm64` - Apple Silicon only
+
+2. **Make it executable and move to PATH**:
+   ```bash
+   chmod +x toasty-macos
+   sudo mv toasty-macos /usr/local/bin/toasty
+   ```
+
+3. **Install terminal-notifier** (required for notifications):
    ```bash
    brew install terminal-notifier
    ```
 
-2. **Build toasty**:
-   ```bash
-   clang++ -std=c++20 -x objective-c++ -framework Foundation -framework AppKit -o toasty main_mac.mm
-   ```
-
-3. **Enable notifications**:
+4. **Enable notifications**:
    - Open **System Settings → Notifications**
    - Find **terminal-notifier** in the list
    - Enable **Allow Notifications**
