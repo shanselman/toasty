@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
@@ -56,16 +56,74 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: toasty-signed
+          name: toasty-windows
           path: artifacts/*.exe
 
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build x64 (Intel)
+        run: |
+          clang++ -std=c++20 -x objective-c++ \
+            -target x86_64-apple-macos10.15 \
+            -framework Foundation -framework AppKit \
+            -O2 -o toasty-x64 main_mac.mm
+
+      - name: Build ARM64 (Apple Silicon)
+        run: |
+          clang++ -std=c++20 -x objective-c++ \
+            -target arm64-apple-macos11 \
+            -framework Foundation -framework AppKit \
+            -O2 -o toasty-arm64 main_mac.mm
+
+      - name: Create Universal Binary
+        run: |
+          lipo -create -output toasty toasty-x64 toasty-arm64
+          file toasty
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p artifacts
+          cp toasty artifacts/toasty-macos
+          cp toasty-x64 artifacts/toasty-macos-x64
+          cp toasty-arm64 artifacts/toasty-macos-arm64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: toasty-macos
+          path: artifacts/toasty-macos*
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: toasty-windows
+          path: artifacts
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: toasty-macos
+          path: artifacts
+
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
             artifacts/toasty-x64.exe
             artifacts/toasty-arm64.exe
+            artifacts/toasty-macos
+            artifacts/toasty-macos-x64
+            artifacts/toasty-macos-arm64
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
