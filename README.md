@@ -60,6 +60,8 @@ toasty "Query done" --app gemini
 
 Toasty can automatically configure AI CLI agents to show notifications when tasks complete.
 
+> 📖 **Want more control?** See [HOOKS.md](HOOKS.md) for all available hook events (permission requests, errors, session lifecycle, etc.)
+
 ### Supported Agents
 
 | Agent | Config Path | Hook Event | Scope |
