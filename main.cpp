@@ -1602,6 +1602,10 @@ int wmain(int argc, wchar_t* argv[]) {
         auto notifier = ToastNotificationManager::CreateToastNotifier(APP_ID);
         notifier.Show(toast);
 
+        // Give the notification time to be processed and displayed by Windows
+        // Without this delay, the process exits too quickly and the toast may not appear
+        Sleep(100);
+
         return 0;
     }
     catch (const hresult_error& ex) {
