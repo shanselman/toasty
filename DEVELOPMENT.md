@@ -207,14 +207,14 @@ With click-to-focus and icon:
   "hooks": {
     "sessionStart": [{
       "type": "command",
-      "bash": "toasty 'Copilot started' -t 'GitHub Copilot'",
-      "powershell": "D:\\path\\to\\toasty.exe 'Copilot started' -t 'GitHub Copilot'",
+      "bash": "toasty 'Copilot task complete' -t 'GitHub Copilot'",
+      "powershell": "D:\\path\\to\\toasty.exe 'Copilot task complete' -t 'GitHub Copilot'",
       "timeoutSec": 5
     }],
     "sessionEnd": [{
       "type": "command",
-      "bash": "toasty 'Copilot finished' -t 'GitHub Copilot'",
-      "powershell": "D:\\path\\to\\toasty.exe 'Copilot finished' -t 'GitHub Copilot'",
+      "bash": "toasty 'Copilot session ended' -t 'GitHub Copilot'",
+      "powershell": "D:\\path\\to\\toasty.exe 'Copilot session ended' -t 'GitHub Copilot'",
       "timeoutSec": 5
     }]
   }

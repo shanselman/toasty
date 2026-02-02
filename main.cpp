@@ -836,20 +836,6 @@ bool install_copilot(const std::wstring& exePath) {
     // Set version
     rootObj.SetNamedValue(L"version", JsonValue::CreateNumberValue(1));
     
-    // Build hook structure
-    JsonObject hookObj;
-    hookObj.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
-    
-    // For bash, use forward slashes and toasty (assuming it's in PATH)
-    hookObj.SetNamedValue(L"bash", JsonValue::CreateStringValue(L"toasty 'Copilot finished' -t 'GitHub Copilot'"));
-    
-    // For PowerShell, use the full exe path with escaped backslashes
-    std::wstring escapedPath = escape_json_string(exePath);
-    std::wstring psCommand = escapedPath + L" 'Copilot finished' -t 'GitHub Copilot'";
-    hookObj.SetNamedValue(L"powershell", JsonValue::CreateStringValue(psCommand));
-    
-    hookObj.SetNamedValue(L"timeoutSec", JsonValue::CreateNumberValue(5));
-    
     // Get or create hooks object
     JsonObject hooksObj;
     if (rootObj.HasKey(L"hooks")) {
@@ -857,7 +843,7 @@ bool install_copilot(const std::wstring& exePath) {
     }
     
     // Helper lambda to add hook to an array if not already present
-    auto addHookIfMissing = [&](const std::wstring& hookType) -> bool {
+    auto addHookIfMissing = [&](const std::wstring& hookType, const std::wstring& message) -> bool {
         JsonArray hookArray;
         if (hooksObj.HasKey(hookType)) {
             hookArray = hooksObj.GetNamedArray(hookType);
@@ -874,6 +860,22 @@ bool install_copilot(const std::wstring& exePath) {
                 }
             }
         }
+        
+        // Build hook structure for this hook type
+        JsonObject hookObj;
+        hookObj.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
+        
+        // For bash, use forward slashes and toasty (assuming it's in PATH)
+        std::wstring bashCmd = L"toasty '" + message + L"' -t 'GitHub Copilot'";
+        hookObj.SetNamedValue(L"bash", JsonValue::CreateStringValue(bashCmd));
+        
+        // For PowerShell, use the full exe path with escaped backslashes
+        std::wstring escapedPath = escape_json_string(exePath);
+        std::wstring psCommand = escapedPath + L" '" + message + L"' -t 'GitHub Copilot'";
+        hookObj.SetNamedValue(L"powershell", JsonValue::CreateStringValue(psCommand));
+        
+        hookObj.SetNamedValue(L"timeoutSec", JsonValue::CreateNumberValue(5));
+        
         hookArray.Append(hookObj);
         hooksObj.SetNamedValue(hookType, hookArray);
         return true; // Added
@@ -881,9 +883,9 @@ bool install_copilot(const std::wstring& exePath) {
     
     // Add to both sessionStart and sessionEnd
     // sessionStart fires on new sessions AND resumed sessions (works with --resume)
-    // sessionEnd only fires on new sessions (known GitHub Copilot bug with --resume)
-    bool addedStart = addHookIfMissing(L"sessionStart");
-    bool addedEnd = addHookIfMissing(L"sessionEnd");
+    // sessionEnd only fires when sessions end (known issue: doesn't fire with --resume)
+    bool addedStart = addHookIfMissing(L"sessionStart", L"Copilot task complete");
+    bool addedEnd = addHookIfMissing(L"sessionEnd", L"Copilot session ended");
     
     // If neither was added, already installed
     if (!addedStart && !addedEnd) {

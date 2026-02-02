@@ -162,16 +162,16 @@ Add to `.github/hooks/toasty.json`:
     "sessionStart": [
       {
         "type": "command",
-        "bash": "toasty 'Copilot started'",
-        "powershell": "toasty.exe 'Copilot started'",
+        "bash": "toasty 'Copilot task complete'",
+        "powershell": "toasty.exe 'Copilot task complete'",
         "timeoutSec": 5
       }
     ],
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "toasty 'Copilot finished'",
-        "powershell": "toasty.exe 'Copilot finished'",
+        "bash": "toasty 'Copilot session ended'",
+        "powershell": "toasty.exe 'Copilot session ended'",
         "timeoutSec": 5
       }
     ]
