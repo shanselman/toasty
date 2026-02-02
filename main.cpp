@@ -1195,7 +1195,8 @@ void handle_install(const std::wstring& agent) {
         if (install_copilot(exePath)) {
             std::wcout << L"  [x] GitHub Copilot: Added sessionStart and sessionEnd hooks\n";
             std::wcout << L"      Note: This is repo-level only, not global\n";
-            std::wcout << L"      Note: sessionStart works with --resume, sessionEnd does not (GitHub Copilot limitation)\n";
+            std::wcout << L"      Note: sessionStart works with --resume\n";
+            std::wcout << L"            sessionEnd does not (Copilot limitation)\n";
             anyInstalled = true;
         } else {
             std::wcout << L"  [ ] GitHub Copilot: Failed to install\n";

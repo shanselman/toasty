@@ -117,8 +117,8 @@ This means you can just run `toasty "Done"` and it picks the right branding.
 
 ### 5. GitHub Copilot --resume Not Firing Hooks
 **Problem:** `copilot --resume` does not trigger sessionEnd hooks.
-**Cause:** Known bug in GitHub Copilot CLI (issue #1084) - sessionEnd and sessionStart hooks don't fire when using --resume or --continue flags.
-**Solution:** Install both sessionStart and sessionEnd hooks. sessionStart DOES fire when resuming, ensuring notifications work even with --resume.
+**Cause:** Known limitation in GitHub Copilot CLI - sessionEnd hooks don't fire when using --resume or --continue flags.
+**Solution:** Install both sessionStart and sessionEnd hooks. sessionStart DOES fire when resuming (including with --resume), ensuring notifications work in all scenarios.
 
 ## Version History
 - **v0.1** - Basic toast notifications
