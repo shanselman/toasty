@@ -66,7 +66,9 @@ Toasty can automatically configure AI CLI agents to show notifications when task
 |-------|-------------|------------|-------|
 | Claude Code | `~/.claude/settings.json` | `Stop` | User |
 | Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
-| GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
+| GitHub Copilot | `.github/hooks/toasty.json` | `sessionStart`, `sessionEnd` | Repo |
+
+**Note for GitHub Copilot users:** Due to a [known issue in GitHub Copilot CLI](https://github.com/github/copilot-cli/issues/1084), the `sessionEnd` hook does not fire when using `--resume` or `--continue` flags. Toasty now installs both `sessionStart` and `sessionEnd` hooks. The `sessionStart` hook works with `--resume`, ensuring you get notifications even when resuming sessions.
 
 ### Auto-Install
 
@@ -157,6 +159,14 @@ Add to `.github/hooks/toasty.json`:
 {
   "version": 1,
   "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "toasty 'Copilot started'",
+        "powershell": "toasty.exe 'Copilot started'",
+        "timeoutSec": 5
+      }
+    ],
     "sessionEnd": [
       {
         "type": "command",
@@ -168,6 +178,8 @@ Add to `.github/hooks/toasty.json`:
   }
 }
 ```
+
+**Important:** `sessionStart` works with `copilot --resume`, but `sessionEnd` does not due to a GitHub Copilot CLI limitation. Using both ensures you get notifications in all scenarios.
 
 ## Building
 

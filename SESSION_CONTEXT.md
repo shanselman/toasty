@@ -68,6 +68,12 @@ Note: Same nested structure as Claude. Uses `AfterAgent` not `Stop`.
 {
   "version": 1,
   "hooks": {
+    "sessionStart": [{
+      "type": "command",
+      "bash": "toasty 'Copilot started' -t 'GitHub Copilot'",
+      "powershell": "D:\\path\\to\\toasty.exe 'Copilot started' -t 'GitHub Copilot'",
+      "timeoutSec": 5
+    }],
     "sessionEnd": [{
       "type": "command",
       "bash": "toasty 'Copilot finished' -t 'GitHub Copilot'",
@@ -77,6 +83,8 @@ Note: Same nested structure as Claude. Uses `AfterAgent` not `Stop`.
   }
 }
 ```
+
+**Note:** `sessionStart` works with `copilot --resume`, `sessionEnd` does not (known Copilot CLI limitation).
 
 ## Auto-Detection
 Toasty walks the process tree looking for known parent processes:
@@ -107,12 +115,18 @@ This means you can just run `toasty "Done"` and it picks the right branding.
 1. Walk process tree with `CreateToolhelp32Snapshot` to find parent with visible window
 2. If that fails, enumerate all windows looking for `CASCADIA_HOSTING_WINDOW_CLASS` (Windows Terminal) or `ConsoleWindowClass`
 
+### 5. GitHub Copilot --resume Not Firing Hooks
+**Problem:** `copilot --resume` does not trigger sessionEnd hooks.
+**Cause:** Known bug in GitHub Copilot CLI (issue #1084) - sessionEnd and sessionStart hooks don't fire when using --resume or --continue flags.
+**Solution:** Install both sessionStart and sessionEnd hooks. sessionStart DOES fire when resuming, ensuring notifications work even with --resume.
+
 ## Version History
 - **v0.1** - Basic toast notifications
 - **v0.2** - Auto-detection of parent AI agent, embedded icons
 - **v0.3** - Click-to-focus feature (protocol handler)
 - **v0.4** - Code cleanup (HandleGuard, to_lower), fixed Gemini hook format
 - **v0.5** - Improved click-to-focus reliability, removed debug logging
+- **v0.6** - Added sessionStart hook for GitHub Copilot --resume support
 
 ## Build
 ```bash

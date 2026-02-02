@@ -205,6 +205,12 @@ With click-to-focus and icon:
 {
   "version": 1,
   "hooks": {
+    "sessionStart": [{
+      "type": "command",
+      "bash": "toasty 'Copilot started' -t 'GitHub Copilot'",
+      "powershell": "D:\\path\\to\\toasty.exe 'Copilot started' -t 'GitHub Copilot'",
+      "timeoutSec": 5
+    }],
     "sessionEnd": [{
       "type": "command",
       "bash": "toasty 'Copilot finished' -t 'GitHub Copilot'",
@@ -215,7 +221,9 @@ With click-to-focus and icon:
 }
 ```
 
-**Important**: Claude and Gemini require the nested `hooks` array structure!
+**Important**: 
+- Claude and Gemini require the nested `hooks` array structure!
+- GitHub Copilot: `sessionStart` works with `--resume`, but `sessionEnd` does not (known Copilot CLI bug)
 
 ## Embedded Resources
 

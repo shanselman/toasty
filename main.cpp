@@ -855,26 +855,40 @@ bool install_copilot(const std::wstring& exePath) {
         hooksObj = rootObj.GetNamedObject(L"hooks");
     }
     
-    // Get or create sessionEnd array
-    JsonArray sessionEndArray;
-    if (hooksObj.HasKey(L"sessionEnd")) {
-        sessionEndArray = hooksObj.GetNamedArray(L"sessionEnd");
-        // Check if toasty is already there
-        for (const auto& item : sessionEndArray) {
-            if (item.ValueType() == JsonValueType::Object) {
-                auto obj = item.GetObject();
-                if (obj.HasKey(L"bash")) {
-                    std::wstring bash = obj.GetNamedString(L"bash").c_str();
-                    if (bash.find(L"toasty") != std::wstring::npos) {
-                        return true; // Already installed
+    // Helper lambda to add hook to an array if not already present
+    auto addHookIfMissing = [&](const std::wstring& hookType) -> bool {
+        JsonArray hookArray;
+        if (hooksObj.HasKey(hookType)) {
+            hookArray = hooksObj.GetNamedArray(hookType);
+            // Check if toasty is already there
+            for (const auto& item : hookArray) {
+                if (item.ValueType() == JsonValueType::Object) {
+                    auto obj = item.GetObject();
+                    if (obj.HasKey(L"bash")) {
+                        std::wstring bash = obj.GetNamedString(L"bash").c_str();
+                        if (bash.find(L"toasty") != std::wstring::npos) {
+                            return false; // Already present
+                        }
                     }
                 }
             }
         }
+        hookArray.Append(hookObj);
+        hooksObj.SetNamedValue(hookType, hookArray);
+        return true; // Added
+    };
+    
+    // Add to both sessionStart and sessionEnd
+    // sessionStart fires on new sessions AND resumed sessions (works with --resume)
+    // sessionEnd only fires on new sessions (known GitHub Copilot bug with --resume)
+    bool addedStart = addHookIfMissing(L"sessionStart");
+    bool addedEnd = addHookIfMissing(L"sessionEnd");
+    
+    // If neither was added, already installed
+    if (!addedStart && !addedEnd) {
+        return true;
     }
     
-    sessionEndArray.Append(hookObj);
-    hooksObj.SetNamedValue(L"sessionEnd", sessionEndArray);
     rootObj.SetNamedValue(L"hooks", hooksObj);
     
     // Write to file
@@ -938,15 +952,21 @@ bool is_copilot_installed() {
         auto rootObj = JsonObject::Parse(to_hstring(content));
         if (rootObj.HasKey(L"hooks")) {
             auto hooksObj = rootObj.GetNamedObject(L"hooks");
-            if (hooksObj.HasKey(L"sessionEnd")) {
-                auto array = hooksObj.GetNamedArray(L"sessionEnd");
-                for (const auto& item : array) {
-                    if (item.ValueType() == JsonValueType::Object) {
-                        auto obj = item.GetObject();
-                        if (obj.HasKey(L"bash")) {
-                            std::wstring bash = obj.GetNamedString(L"bash").c_str();
-                            if (bash.find(L"toasty") != std::wstring::npos) {
-                                return true;
+            
+            // Check both sessionStart and sessionEnd
+            // sessionStart is needed for --resume support
+            std::vector<std::wstring> hookTypes = {L"sessionStart", L"sessionEnd"};
+            for (const auto& hookType : hookTypes) {
+                if (hooksObj.HasKey(hookType)) {
+                    auto array = hooksObj.GetNamedArray(hookType);
+                    for (const auto& item : array) {
+                        if (item.ValueType() == JsonValueType::Object) {
+                            auto obj = item.GetObject();
+                            if (obj.HasKey(L"bash")) {
+                                std::wstring bash = obj.GetNamedString(L"bash").c_str();
+                                if (bash.find(L"toasty") != std::wstring::npos) {
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -1170,8 +1190,9 @@ void handle_install(const std::wstring& agent) {
     
     if (installCopilot && (copilotDetected || explicitAgent)) {
         if (install_copilot(exePath)) {
-            std::wcout << L"  [x] GitHub Copilot: Added sessionEnd hook\n";
+            std::wcout << L"  [x] GitHub Copilot: Added sessionStart and sessionEnd hooks\n";
             std::wcout << L"      Note: This is repo-level only, not global\n";
+            std::wcout << L"      Note: sessionStart works with --resume, sessionEnd does not (GitHub Copilot limitation)\n";
             anyInstalled = true;
         } else {
             std::wcout << L"  [ ] GitHub Copilot: Failed to install\n";
