@@ -171,6 +171,49 @@ Add to `.github/hooks/toasty.json`:
 }
 ```
 
+## Push Notifications (ntfy)
+
+Get push notifications on your phone when AI agents finish — even when you're away from your desk. Uses [ntfy.sh](https://ntfy.sh), a free, open-source notification service. No account or API key required.
+
+### Setup
+
+1. Install the [ntfy app](https://ntfy.sh) on your phone (iOS/Android)
+2. Subscribe to a topic of your choice (use something unique and hard to guess)
+3. Set the environment variable:
+
+```cmd
+set TOASTY_NTFY_TOPIC=my-secret-toasty-topic
+```
+
+That's it. Now every toast notification also sends a push to your phone.
+
+### Self-Hosted Server
+
+If you run your own [ntfy server](https://docs.ntfy.sh/install/), point toasty at it:
+
+```cmd
+set TOASTY_NTFY_SERVER=ntfy.example.com
+```
+
+Default server is `ntfy.sh` if not set.
+
+### How It Works
+
+- Toasty checks for `TOASTY_NTFY_TOPIC` on each run
+- If set, it sends an HTTPS POST to `ntfy.sh/<topic>` (or your custom server) with the notification title and message
+- The request has a 5-second timeout — if the service is down or the network is slow, toasty won't hang
+- If anything goes wrong with the push notification, the local toast still shows normally
+
+### Example
+
+```cmd
+# Set once (add to your shell profile)
+set TOASTY_NTFY_TOPIC=scotts-coding-notifications
+
+# Now every toasty notification also goes to your phone
+toasty "Claude finished analysis" --app claude
+```
+
 ## Building
 
 Requires Visual Studio 2022 with C++ workload.

@@ -15,11 +15,13 @@
 #include <fstream>
 #include <sstream>
 #include <tlhelp32.h>
+#include <winhttp.h>
 #include "resource.h"
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "winhttp.lib")
 
 using namespace winrt;
 using namespace Windows::Data::Xml::Dom;
@@ -295,6 +297,9 @@ void print_usage() {
                << L"  --uninstall          Remove hooks from all AI CLI agents\n"
                << L"  --status             Show installation status\n"
                << L"  --register           Re-register app for notifications (troubleshooting)\n\n"
+               << L"Push Notifications:\n"
+               << L"  Set TOASTY_NTFY_TOPIC to send push notifications to your phone via ntfy.sh.\n"
+               << L"  Set TOASTY_NTFY_SERVER to use a self-hosted ntfy server (default: ntfy.sh).\n\n"
                << L"Note: Toasty auto-detects known parent processes (Claude, Copilot, etc.)\n"
                << L"      and applies the appropriate preset automatically. Use --app to override.\n\n"
                << L"Examples:\n"
@@ -321,7 +326,85 @@ std::wstring escape_xml(const std::wstring& text) {
     return result;
 }
 
-// Register protocol handler for toast activation (click-to-focus)
+// Send push notification via ntfy.sh (non-blocking, fire-and-forget)
+// Only sends if TOASTY_NTFY_TOPIC env var is set.
+// Uses TOASTY_NTFY_SERVER env var for custom server (default: ntfy.sh).
+// Timeout is aggressive (5 seconds) so it never blocks the CLI.
+void send_ntfy_notification(const std::wstring& title, const std::wstring& message) {
+    // Check for topic
+    wchar_t topicBuf[256] = {};
+    if (!GetEnvironmentVariableW(L"TOASTY_NTFY_TOPIC", topicBuf, 256) || topicBuf[0] == L'\0') {
+        return;  // ntfy not configured, silently skip
+    }
+    std::wstring topic(topicBuf);
+
+    // Check for custom server (default: ntfy.sh)
+    wchar_t serverBuf[256] = {};
+    std::wstring server = L"ntfy.sh";
+    if (GetEnvironmentVariableW(L"TOASTY_NTFY_SERVER", serverBuf, 256) && serverBuf[0] != L'\0') {
+        server = serverBuf;
+    }
+
+    // Build the path: /<topic>
+    std::wstring path = L"/" + topic;
+
+    // Convert title and message to UTF-8 for HTTP body
+    std::string bodyUtf8;
+    {
+        int size = WideCharToMultiByte(CP_UTF8, 0, message.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size > 0) {
+            bodyUtf8.resize(size - 1);
+            WideCharToMultiByte(CP_UTF8, 0, message.c_str(), -1, &bodyUtf8[0], size, nullptr, nullptr);
+        }
+    }
+    std::string titleUtf8;
+    {
+        int size = WideCharToMultiByte(CP_UTF8, 0, title.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size > 0) {
+            titleUtf8.resize(size - 1);
+            WideCharToMultiByte(CP_UTF8, 0, title.c_str(), -1, &titleUtf8[0], size, nullptr, nullptr);
+        }
+    }
+
+    // Fire-and-forget HTTP POST with aggressive timeout
+    HINTERNET hSession = WinHttpOpen(L"Toasty/1.0",
+        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return;
+
+    // Set timeouts: 3s resolve, 3s connect, 5s send, 5s receive
+    WinHttpSetTimeouts(hSession, 3000, 3000, 5000, 5000);
+
+    HINTERNET hConnect = WinHttpConnect(hSession, server.c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (!hConnect) {
+        WinHttpCloseHandle(hSession);
+        return;
+    }
+
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", path.c_str(),
+        nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (!hRequest) {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return;
+    }
+
+    // Add title header
+    std::wstring titleHeader = L"Title: " + title;
+    WinHttpAddRequestHeaders(hRequest, titleHeader.c_str(), (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
+
+    // Send the request (body is the message)
+    BOOL sent = WinHttpSendRequest(hRequest,
+        WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+        (LPVOID)bodyUtf8.c_str(), (DWORD)bodyUtf8.size(), (DWORD)bodyUtf8.size(), 0);
+
+    if (sent) {
+        WinHttpReceiveResponse(hRequest, nullptr);  // Wait for response (respects timeout)
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+}
 bool register_protocol() {
     wchar_t exePath[MAX_PATH];
     GetModuleFileNameW(nullptr, exePath, MAX_PATH);
@@ -1602,6 +1685,9 @@ int wmain(int argc, wchar_t* argv[]) {
 
         auto notifier = ToastNotificationManager::CreateToastNotifier(APP_ID);
         notifier.Show(toast);
+
+        // Send push notification via ntfy if configured (fire-and-forget)
+        send_ntfy_notification(title, message);
 
         return 0;
     }
