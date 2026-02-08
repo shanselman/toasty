@@ -4,6 +4,18 @@
 
 A tiny Windows toast notification CLI that knows how to hook into Coding Agents so you get notified when their long running tasks are finished. 229 KB, no dependencies.
 
+## Installation
+
+### Via Windows Package Manager (winget)
+
+```cmd
+winget install shanselman.toasty
+```
+
+### Manual Download
+
+Download the latest release from [GitHub Releases](https://github.com/shanselman/toasty/releases/latest).
+
 ## Quick Start
 
 ```cmd
@@ -243,6 +255,10 @@ cmake --build build --config Release
 ```
 
 Output: `build\Release\toasty.exe`
+
+## Publishing
+
+See [WINGET.md](WINGET.md) for instructions on submitting Toasty to the Windows Package Manager repository.
 
 ## Testing
 
