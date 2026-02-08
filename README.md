@@ -28,6 +28,7 @@ Options:
   --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)
   --uninstall          Remove hooks from all AI CLI agents
   --status             Show installation status
+  --dry-run            Show what would happen without executing side effects
 ```
 
 ## AI CLI Auto-Detection
@@ -240,6 +241,16 @@ cmake --build build --config Release
 ```
 
 Output: `build\Release\toasty.exe`
+
+## Testing
+
+Run the test suite after building:
+
+```cmd
+.\tests\test-toasty.ps1 -ExePath .\build\Release\toasty.exe
+```
+
+Tests use `--dry-run` to validate argument parsing, preset icons, toast XML generation, install/uninstall logic, and ntfy configuration without showing actual notifications or modifying any config files.
 
 ## License
 
