@@ -34,6 +34,9 @@ const wchar_t* APP_NAME = L"Toasty";
 const wchar_t* PROTOCOL_NAME = L"toasty";
 const wchar_t* TOASTY_VERSION = L"0.3";
 
+// Global flags
+bool g_dryRun = false;
+
 // RAII wrapper for Windows handles
 struct HandleGuard {
     HANDLE h;
@@ -298,7 +301,8 @@ void print_usage() {
                << L"  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)\n"
                << L"  --uninstall          Remove hooks from all AI CLI agents\n"
                << L"  --status             Show installation status\n"
-               << L"  --register           Re-register app for notifications (troubleshooting)\n\n"
+               << L"  --register           Re-register app for notifications (troubleshooting)\n"
+               << L"  --dry-run            Show what would happen without executing side effects\n\n"
                << L"Push Notifications:\n"
                << L"  Set TOASTY_NTFY_TOPIC to send push notifications to your phone via ntfy.sh.\n"
                << L"  Set TOASTY_NTFY_SERVER to use a self-hosted ntfy server (default: ntfy.sh).\n\n"
@@ -1402,6 +1406,35 @@ void handle_install(const std::wstring& agent) {
     bool installGemini = installAll || agent == L"gemini";
     bool installCopilot = installAll || agent == L"copilot";
 
+    if (g_dryRun) {
+        std::wcout << L"[dry-run] Install targets:";
+        if (installClaude) std::wcout << L" claude";
+        if (installGemini) std::wcout << L" gemini";
+        if (installCopilot) std::wcout << L" copilot";
+        std::wcout << L"\n";
+        
+        if (installClaude) {
+            std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+            std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
+            std::wstring escapedPath = escape_json_string(exePath);
+            std::wcout << L"[dry-run] Hook command: " << escapedPath << L" \"Task complete\" -t \"Claude Code\"\n";
+            std::wcout << L"[dry-run] Hook type: Stop\n";
+        }
+        if (installGemini) {
+            std::wstring configPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");
+            std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
+            std::wstring escapedPath = escape_json_string(exePath);
+            std::wcout << L"[dry-run] Hook command: " << escapedPath << L" \"Gemini finished\" -t \"Gemini\"\n";
+            std::wcout << L"[dry-run] Hook type: AfterAgent\n";
+        }
+        if (installCopilot) {
+            std::wcout << L"[dry-run] Would write: .github\\hooks\\toasty.json\n";
+            std::wcout << L"[dry-run] Hook command: toasty 'Copilot finished' -t 'GitHub Copilot'\n";
+            std::wcout << L"[dry-run] Hook type: sessionEnd\n";
+        }
+        return;
+    }
+
     std::wcout << L"Detecting AI CLI agents...\n";
 
     bool claudeDetected = detect_claude();
@@ -1455,6 +1488,16 @@ void handle_install(const std::wstring& agent) {
 
 // Handle --uninstall command
 void handle_uninstall() {
+    if (g_dryRun) {
+        std::wcout << L"[dry-run] Would check and remove hooks from:\n";
+        std::wstring claudePath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+        std::wstring geminiPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");
+        std::wcout << L"[dry-run]   Claude: " << claudePath << L"\n";
+        std::wcout << L"[dry-run]   Gemini: " << geminiPath << L"\n";
+        std::wcout << L"[dry-run]   Copilot: .github\\hooks\\toasty.json\n";
+        return;
+    }
+
     std::wcout << L"Removing toasty hooks...\n";
     
     bool anyUninstalled = false;
@@ -1639,11 +1682,13 @@ int wmain(int argc, wchar_t* argv[]) {
     bool explicitTitle = false; // Track if user explicitly set -t
     bool debug = false;
 
-    // Quick scan for --debug flag
+    // Quick scan for --debug and --dry-run flags
     for (int i = 1; i < argc; i++) {
-        if (std::wstring(argv[i]) == L"--debug") {
+        std::wstring flag(argv[i]);
+        if (flag == L"--debug") {
             debug = true;
-            break;
+        } else if (flag == L"--dry-run") {
+            g_dryRun = true;
         }
     }
 
@@ -1738,6 +1783,12 @@ int wmain(int argc, wchar_t* argv[]) {
                 std::wcerr << L"Error: --icon requires an argument\n";
                 return 1;
             }
+        }
+        else if (arg == L"--debug") {
+            // Already handled in pre-scan
+        }
+        else if (arg == L"--dry-run") {
+            // Already handled in pre-scan
         }
         else if (arg[0] != L'-' && message.empty()) {
             message = arg;
@@ -1865,6 +1916,29 @@ int wmain(int argc, wchar_t* argv[]) {
         xml += L"<text>" + escape_xml(title) + L"</text>"
                L"<text>" + escape_xml(message) + L"</text>"
                L"</binding></visual></toast>";
+
+        if (g_dryRun) {
+            std::wcout << L"[dry-run] Title: " << title << L"\n";
+            std::wcout << L"[dry-run] Message: " << message << L"\n";
+            std::wcout << L"[dry-run] Icon: " << (iconPath.empty() ? L"(none)" : iconPath) << L"\n";
+            std::wcout << L"[dry-run] Toast XML:\n" << xml << L"\n";
+
+            // Show ntfy status
+            wchar_t topicBuf[256] = {};
+            if (GetEnvironmentVariableW(L"TOASTY_NTFY_TOPIC", topicBuf, 256) && topicBuf[0] != L'\0') {
+                wchar_t serverBuf[256] = {};
+                std::wstring server = L"ntfy.sh";
+                if (GetEnvironmentVariableW(L"TOASTY_NTFY_SERVER", serverBuf, 256) && serverBuf[0] != L'\0') {
+                    server = serverBuf;
+                }
+                std::wcout << L"[dry-run] ntfy: would POST to https://" << server << L"/" << topicBuf << L"\n";
+            } else {
+                std::wcout << L"[dry-run] ntfy: not configured\n";
+            }
+
+            std::wcout << L"[dry-run] Update check: skipped\n";
+            return 0;
+        }
 
         XmlDocument doc;
         doc.LoadXml(xml);
