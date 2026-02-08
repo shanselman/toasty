@@ -38,14 +38,12 @@ Options:
 | Claude Code | ✅ | ✅ | ✅ | `Stop` | `~/.claude/settings.json` |
 | GitHub Copilot | ✅ | ✅ | ✅ | `sessionEnd` | `.github/hooks/toasty.json` |
 | Gemini CLI | ✅ | ✅ | ✅ | `AfterAgent` | `~/.gemini/settings.json` |
-| OpenAI Codex | ✅ | ✅ | ❌ | `notify` | `~/.codex/config.toml` |
-| OpenCode | ❌ | ❌ | ❌ | JS plugin | `~/.config/opencode/plugins/` |
+| OpenAI Codex | ✅ | ✅ | ✅ | `notify` | `~/.codex/config.toml` |
+| OpenCode | ⬜ | ✅ | ✅ | JS plugin | `~/.config/opencode/plugins/` |
 
-- **Icon**: Built-in icon for toast notifications
+- **Icon**: Built-in icon for toast notifications (⬜ = uses default Toasty icon)
 - **Auto-Detect**: Toasty recognizes the agent's process and applies the preset automatically
 - **`--install`**: `toasty --install` can automatically configure the agent's hook
-
-Agents without `--install` support can still use toasty manually: `toasty "Task done" --app codex`
 
 > Don't see your agent? Any CLI tool with a hook/notification mechanism can call toasty directly.
 

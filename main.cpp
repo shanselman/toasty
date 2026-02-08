@@ -57,7 +57,8 @@ const AppPreset APP_PRESETS[] = {
     { L"copilot", L"GitHub Copilot", IDI_COPILOT },
     { L"gemini", L"Gemini", IDI_GEMINI },
     { L"codex", L"Codex", IDI_CODEX },
-    { L"cursor", L"Cursor", IDI_CURSOR }
+    { L"cursor", L"Cursor", IDI_CURSOR },
+    { L"opencode", L"OpenCode", IDI_TOASTY }
 };
 
 // Extract embedded PNG resource to temp file and return path
@@ -199,6 +200,11 @@ const AppPreset* check_command_line_for_preset(const std::wstring& cmdLine) {
         return find_preset(L"cursor");
     }
 
+    // Check for OpenCode
+    if (lowerCmd.find(L"opencode") != std::wstring::npos) {
+        return find_preset(L"opencode");
+    }
+
     return nullptr;
 }
 
@@ -298,7 +304,7 @@ void print_usage() {
                << L"  -i, --icon <path>    Custom icon path (PNG recommended, 48x48px)\n"
                << L"  -v, --version        Show version and exit\n"
                << L"  -h, --help           Show this help\n"
-               << L"  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)\n"
+               << L"  --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, codex, opencode, or all)\n"
                << L"  --uninstall          Remove hooks from all AI CLI agents\n"
                << L"  --status             Show installation status\n"
                << L"  --register           Re-register app for notifications (troubleshooting)\n"
@@ -876,6 +882,16 @@ bool detect_copilot() {
     return path_exists(L".github\\hooks") || path_exists(L".github");
 }
 
+bool detect_codex() {
+    std::wstring codexPath = expand_env(L"%USERPROFILE%\\.codex");
+    return path_exists(codexPath);
+}
+
+bool detect_opencode() {
+    std::wstring opencodePath = expand_env(L"%USERPROFILE%\\.config\\opencode");
+    return path_exists(opencodePath);
+}
+
 // Read file content as string
 std::string read_file(const std::wstring& path) {
     std::ifstream file(path, std::ios::binary);
@@ -1154,6 +1170,116 @@ bool install_copilot(const std::wstring& exePath) {
     return write_file(configPath, jsonStr);
 }
 
+// Install hook for OpenAI Codex CLI
+// Codex uses TOML config at ~/.codex/config.toml with notify = "command"
+bool install_codex(const std::wstring& exePath) {
+    std::wstring configDir = expand_env(L"%USERPROFILE%\\.codex");
+    std::wstring configPath = configDir + L"\\config.toml";
+
+    // Create .codex directory if needed
+    fs::create_directories(configDir);
+
+    std::string content = read_file(configPath);
+
+    // Escape backslashes for TOML string
+    std::string exePathUtf8;
+    {
+        int size = WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size > 0) {
+            exePathUtf8.resize(size - 1);
+            WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, &exePathUtf8[0], size, nullptr, nullptr);
+        }
+    }
+    // Double backslashes for TOML
+    std::string escapedPath;
+    for (char c : exePathUtf8) {
+        if (c == '\\') escapedPath += "\\\\";
+        else escapedPath += c;
+    }
+
+    std::string notifyLine = "notify = [\"" + escapedPath + "\", \"Codex finished\", \"-t\", \"Codex\"]\n";
+
+    if (content.empty()) {
+        // New file
+        return write_file(configPath, notifyLine);
+    }
+
+    // Check if notify is already set
+    if (content.find("toasty") != std::string::npos) {
+        return true; // Already installed
+    }
+
+    backup_file(configPath);
+
+    // Replace existing notify line or append
+    size_t notifyPos = content.find("notify");
+    if (notifyPos != std::string::npos) {
+        // Find end of line
+        size_t lineEnd = content.find('\n', notifyPos);
+        if (lineEnd == std::string::npos) lineEnd = content.size();
+        else lineEnd++; // include the newline
+        content.replace(notifyPos, lineEnd - notifyPos, notifyLine);
+    } else {
+        // Append
+        if (!content.empty() && content.back() != '\n') content += '\n';
+        content += notifyLine;
+    }
+
+    return write_file(configPath, content);
+}
+
+// Install plugin for OpenCode
+// OpenCode uses JS plugins at ~/.config/opencode/plugins/
+bool install_opencode(const std::wstring& exePath) {
+    std::wstring pluginsDir = expand_env(L"%USERPROFILE%\\.config\\opencode\\plugins");
+    std::wstring pluginPath = pluginsDir + L"\\toasty.js";
+
+    fs::create_directories(pluginsDir);
+
+    if (path_exists(pluginPath)) {
+        std::string content = read_file(pluginPath);
+        if (content.find("toasty") != std::string::npos) {
+            return true; // Already installed
+        }
+    }
+
+    // Convert exe path to JS-safe string (forward slashes)
+    std::string exePathUtf8;
+    {
+        int size = WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size > 0) {
+            exePathUtf8.resize(size - 1);
+            WideCharToMultiByte(CP_UTF8, 0, exePath.c_str(), -1, &exePathUtf8[0], size, nullptr, nullptr);
+        }
+    }
+    // Escape backslashes for JS string
+    std::string jsPath;
+    for (char c : exePathUtf8) {
+        if (c == '\\') jsPath += "\\\\";
+        else jsPath += c;
+    }
+
+    std::string plugin =
+        "// Toasty notification plugin for OpenCode\n"
+        "const { execSync } = require('child_process');\n"
+        "\n"
+        "module.exports = {\n"
+        "  name: 'toasty',\n"
+        "  description: 'Toast notification when OpenCode finishes',\n"
+        "  onComplete: () => {\n"
+        "    try {\n"
+        "      execSync('\"" + jsPath + "\" \"OpenCode finished\" -t \"OpenCode\"', { timeout: 5000 });\n"
+        "    } catch (e) { /* ignore */ }\n"
+        "  }\n"
+        "};\n";
+
+    if (path_exists(pluginPath)) {
+        backup_file(pluginPath);
+    }
+
+    return write_file(pluginPath, plugin);
+}
+
 // Check if Claude hook is installed
 bool is_claude_installed() {
     std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
@@ -1371,6 +1497,63 @@ bool uninstall_copilot() {
     return true;
 }
 
+// Uninstall hook for OpenAI Codex
+bool uninstall_codex() {
+    std::wstring configPath = expand_env(L"%USERPROFILE%\\.codex\\config.toml");
+    std::string content = read_file(configPath);
+
+    if (content.empty()) return true;
+
+    if (content.find("toasty") == std::string::npos) return true;
+
+    backup_file(configPath);
+
+    // Remove the notify line containing toasty
+    std::string result;
+    std::istringstream stream(content);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (line.find("notify") != std::string::npos && line.find("toasty") != std::string::npos) {
+            continue; // Skip toasty notify line
+        }
+        result += line + '\n';
+    }
+
+    return write_file(configPath, result);
+}
+
+// Uninstall plugin for OpenCode
+bool uninstall_opencode() {
+    std::wstring pluginPath = expand_env(L"%USERPROFILE%\\.config\\opencode\\plugins\\toasty.js");
+
+    try {
+        if (path_exists(pluginPath)) {
+            backup_file(pluginPath);
+            fs::remove(pluginPath);
+        }
+    } catch (const std::exception&) {
+        std::wcerr << L"Error uninstalling OpenCode plugin\n";
+        return false;
+    }
+
+    return true;
+}
+
+// Check if Codex hook is installed
+bool is_codex_installed() {
+    std::wstring configPath = expand_env(L"%USERPROFILE%\\.codex\\config.toml");
+    std::string content = read_file(configPath);
+    return content.find("toasty") != std::string::npos;
+}
+
+// Check if OpenCode plugin is installed
+bool is_opencode_installed() {
+    std::wstring pluginPath = expand_env(L"%USERPROFILE%\\.config\\opencode\\plugins\\toasty.js");
+    if (!path_exists(pluginPath)) return false;
+    std::string content = read_file(pluginPath);
+    return content.find("toasty") != std::string::npos;
+}
+
 // Show installation status
 void show_status() {
     std::wcout << L"Installation status:\n\n";
@@ -1378,17 +1561,23 @@ void show_status() {
     bool claudeDetected = detect_claude();
     bool geminiDetected = detect_gemini();
     bool copilotDetected = detect_copilot();
+    bool codexDetected = detect_codex();
+    bool opencodeDetected = detect_opencode();
     
     std::wcout << L"Detected agents:\n";
     std::wcout << L"  " << (claudeDetected ? L"[x]" : L"[ ]") << L" Claude Code\n";
     std::wcout << L"  " << (geminiDetected ? L"[x]" : L"[ ]") << L" Gemini CLI\n";
     std::wcout << L"  " << (copilotDetected ? L"[x]" : L"[ ]") << L" GitHub Copilot (in current repo)\n";
+    std::wcout << L"  " << (codexDetected ? L"[x]" : L"[ ]") << L" OpenAI Codex\n";
+    std::wcout << L"  " << (opencodeDetected ? L"[x]" : L"[ ]") << L" OpenCode\n";
     std::wcout << L"\n";
     
     std::wcout << L"Installed hooks:\n";
     std::wcout << L"  " << (is_claude_installed() ? L"[x]" : L"[ ]") << L" Claude Code\n";
     std::wcout << L"  " << (is_gemini_installed() ? L"[x]" : L"[ ]") << L" Gemini CLI\n";
     std::wcout << L"  " << (is_copilot_installed() ? L"[x]" : L"[ ]") << L" GitHub Copilot\n";
+    std::wcout << L"  " << (is_codex_installed() ? L"[x]" : L"[ ]") << L" OpenAI Codex\n";
+    std::wcout << L"  " << (is_opencode_installed() ? L"[x]" : L"[ ]") << L" OpenCode\n";
 }
 
 // Handle --install command
@@ -1405,12 +1594,16 @@ void handle_install(const std::wstring& agent) {
     bool installClaude = installAll || agent == L"claude";
     bool installGemini = installAll || agent == L"gemini";
     bool installCopilot = installAll || agent == L"copilot";
+    bool installCodex = installAll || agent == L"codex";
+    bool installOpencode = installAll || agent == L"opencode";
 
     if (g_dryRun) {
         std::wcout << L"[dry-run] Install targets:";
         if (installClaude) std::wcout << L" claude";
         if (installGemini) std::wcout << L" gemini";
         if (installCopilot) std::wcout << L" copilot";
+        if (installCodex) std::wcout << L" codex";
+        if (installOpencode) std::wcout << L" opencode";
         std::wcout << L"\n";
         
         if (installClaude) {
@@ -1432,6 +1625,16 @@ void handle_install(const std::wstring& agent) {
             std::wcout << L"[dry-run] Hook command: toasty 'Copilot finished' -t 'GitHub Copilot'\n";
             std::wcout << L"[dry-run] Hook type: sessionEnd\n";
         }
+        if (installCodex) {
+            std::wstring configPath = expand_env(L"%USERPROFILE%\\.codex\\config.toml");
+            std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
+            std::wcout << L"[dry-run] Hook type: notify\n";
+        }
+        if (installOpencode) {
+            std::wstring pluginPath = expand_env(L"%USERPROFILE%\\.config\\opencode\\plugins\\toasty.js");
+            std::wcout << L"[dry-run] Would write: " << pluginPath << L"\n";
+            std::wcout << L"[dry-run] Hook type: JS plugin\n";
+        }
         return;
     }
 
@@ -1440,10 +1643,14 @@ void handle_install(const std::wstring& agent) {
     bool claudeDetected = detect_claude();
     bool geminiDetected = detect_gemini();
     bool copilotDetected = detect_copilot();
+    bool codexDetected = detect_codex();
+    bool opencodeDetected = detect_opencode();
 
     std::wcout << L"  " << (claudeDetected ? L"[x]" : L"[ ]") << L" Claude Code found\n";
     std::wcout << L"  " << (geminiDetected ? L"[x]" : L"[ ]") << L" Gemini CLI found\n";
     std::wcout << L"  " << (copilotDetected ? L"[x]" : L"[ ]") << L" GitHub Copilot (in current repo)\n";
+    std::wcout << L"  " << (codexDetected ? L"[x]" : L"[ ]") << L" OpenAI Codex found\n";
+    std::wcout << L"  " << (opencodeDetected ? L"[x]" : L"[ ]") << L" OpenCode found\n";
     std::wcout << L"\n";
 
     std::wcout << L"Installing toasty hooks...\n";
@@ -1479,6 +1686,24 @@ void handle_install(const std::wstring& agent) {
         }
     }
     
+    if (installCodex && (codexDetected || explicitAgent)) {
+        if (install_codex(exePath)) {
+            std::wcout << L"  [x] OpenAI Codex: Added notify hook\n";
+            anyInstalled = true;
+        } else {
+            std::wcout << L"  [ ] OpenAI Codex: Failed to install\n";
+        }
+    }
+    
+    if (installOpencode && (opencodeDetected || explicitAgent)) {
+        if (install_opencode(exePath)) {
+            std::wcout << L"  [x] OpenCode: Added toasty.js plugin\n";
+            anyInstalled = true;
+        } else {
+            std::wcout << L"  [ ] OpenCode: Failed to install\n";
+        }
+    }
+    
     if (anyInstalled) {
         std::wcout << L"\nDone! You'll get notifications when AI agents finish.\n";
     } else {
@@ -1492,9 +1717,13 @@ void handle_uninstall() {
         std::wcout << L"[dry-run] Would check and remove hooks from:\n";
         std::wstring claudePath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
         std::wstring geminiPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");
+        std::wstring codexPath = expand_env(L"%USERPROFILE%\\.codex\\config.toml");
+        std::wstring opencodePath = expand_env(L"%USERPROFILE%\\.config\\opencode\\plugins\\toasty.js");
         std::wcout << L"[dry-run]   Claude: " << claudePath << L"\n";
         std::wcout << L"[dry-run]   Gemini: " << geminiPath << L"\n";
         std::wcout << L"[dry-run]   Copilot: .github\\hooks\\toasty.json\n";
+        std::wcout << L"[dry-run]   Codex: " << codexPath << L"\n";
+        std::wcout << L"[dry-run]   OpenCode: " << opencodePath << L"\n";
         return;
     }
 
@@ -1526,6 +1755,24 @@ void handle_uninstall() {
             anyUninstalled = true;
         } else {
             std::wcout << L"  [ ] GitHub Copilot: Failed to remove\n";
+        }
+    }
+    
+    if (is_codex_installed()) {
+        if (uninstall_codex()) {
+            std::wcout << L"  [x] OpenAI Codex: Removed notify hook\n";
+            anyUninstalled = true;
+        } else {
+            std::wcout << L"  [ ] OpenAI Codex: Failed to remove\n";
+        }
+    }
+    
+    if (is_opencode_installed()) {
+        if (uninstall_opencode()) {
+            std::wcout << L"  [x] OpenCode: Removed toasty.js plugin\n";
+            anyUninstalled = true;
+        } else {
+            std::wcout << L"  [ ] OpenCode: Failed to remove\n";
         }
     }
     
@@ -1757,7 +2004,7 @@ int wmain(int argc, wchar_t* argv[]) {
                     explicitApp = true;
                 } else {
                     std::wcerr << L"Error: Unknown app preset '" << appName << L"'\n";
-                    std::wcerr << L"Available presets: claude, copilot, gemini, codex, cursor\n";
+                    std::wcerr << L"Available presets: claude, copilot, gemini, codex, cursor, opencode\n";
                     return 1;
                 }
             } else {

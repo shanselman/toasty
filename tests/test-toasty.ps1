@@ -162,7 +162,8 @@ $presets = @(
     @{ Name = "copilot"; ExpectedTitle = "GitHub Copilot" },
     @{ Name = "gemini";  ExpectedTitle = "Gemini" },
     @{ Name = "codex";   ExpectedTitle = "Codex" },
-    @{ Name = "cursor";  ExpectedTitle = "Cursor" }
+    @{ Name = "cursor";  ExpectedTitle = "Cursor" },
+    @{ Name = "opencode"; ExpectedTitle = "OpenCode" }
 )
 
 foreach ($preset in $presets) {
@@ -245,12 +246,32 @@ if ((Assert-ExitCode "install copilot exits 0" 0 $r.ExitCode) -and
     Pass "install copilot --dry-run"
 }
 
+# Install codex
+$r = Run-Toasty @("--install", "codex", "--dry-run")
+if ((Assert-ExitCode "install codex exits 0" 0 $r.ExitCode) -and
+    (Assert-OutputContains "install codex target" $r.Stdout "Install targets: codex") -and
+    (Assert-OutputContains "install codex path" $r.Stdout "config.toml") -and
+    (Assert-OutputContains "install codex hook" $r.Stdout "Hook type: notify")) {
+    Pass "install codex --dry-run"
+}
+
+# Install opencode
+$r = Run-Toasty @("--install", "opencode", "--dry-run")
+if ((Assert-ExitCode "install opencode exits 0" 0 $r.ExitCode) -and
+    (Assert-OutputContains "install opencode target" $r.Stdout "Install targets: opencode") -and
+    (Assert-OutputContains "install opencode path" $r.Stdout "toasty.js") -and
+    (Assert-OutputContains "install opencode hook" $r.Stdout "Hook type: JS plugin")) {
+    Pass "install opencode --dry-run"
+}
+
 # Install all (no agent specified)
 $r = Run-Toasty @("--install", "--dry-run")
 if ((Assert-ExitCode "install all exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "install all claude" $r.Stdout "claude") -and
     (Assert-OutputContains "install all gemini" $r.Stdout "gemini") -and
-    (Assert-OutputContains "install all copilot" $r.Stdout "copilot")) {
+    (Assert-OutputContains "install all copilot" $r.Stdout "copilot") -and
+    (Assert-OutputContains "install all codex" $r.Stdout "codex") -and
+    (Assert-OutputContains "install all opencode" $r.Stdout "opencode")) {
     Pass "install all --dry-run"
 }
 
@@ -259,7 +280,9 @@ $r = Run-Toasty @("--uninstall", "--dry-run")
 if ((Assert-ExitCode "uninstall exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "uninstall claude" $r.Stdout "Claude:") -and
     (Assert-OutputContains "uninstall gemini" $r.Stdout "Gemini:") -and
-    (Assert-OutputContains "uninstall copilot" $r.Stdout "Copilot:")) {
+    (Assert-OutputContains "uninstall copilot" $r.Stdout "Copilot:") -and
+    (Assert-OutputContains "uninstall codex" $r.Stdout "Codex:") -and
+    (Assert-OutputContains "uninstall opencode" $r.Stdout "OpenCode:")) {
     Pass "uninstall --dry-run"
 }
 
