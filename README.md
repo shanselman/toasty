@@ -31,14 +31,27 @@ Options:
   --dry-run            Show what would happen without executing side effects
 ```
 
-## AI CLI Auto-Detection
+## Supported AI Agents
+
+| Agent | Icon | Auto-Detect | `--install` | Hook Type | Config Location |
+|-------|:----:|:-----------:|:-----------:|-----------|-----------------|
+| Claude Code | ✅ | ✅ | ✅ | `Stop` | `~/.claude/settings.json` |
+| GitHub Copilot | ✅ | ✅ | ✅ | `sessionEnd` | `.github/hooks/toasty.json` |
+| Gemini CLI | ✅ | ✅ | ✅ | `AfterAgent` | `~/.gemini/settings.json` |
+| OpenAI Codex | ✅ | ✅ | ❌ | `notify` | `~/.codex/config.toml` |
+| OpenCode | ❌ | ❌ | ❌ | JS plugin | `~/.config/opencode/plugins/` |
+
+- **Icon**: Built-in icon for toast notifications
+- **Auto-Detect**: Toasty recognizes the agent's process and applies the preset automatically
+- **`--install`**: `toasty --install` can automatically configure the agent's hook
+
+Agents without `--install` support can still use toasty manually: `toasty "Task done" --app codex`
+
+> Don't see your agent? Any CLI tool with a hook/notification mechanism can call toasty directly.
+
+## Auto-Detection
 
 Toasty automatically detects when it's called from a known AI CLI tool and applies the appropriate icon and title. No flags needed!
-
-**Auto-detected tools:**
-- Claude Code
-- GitHub Copilot
-- Google Gemini CLI
 
 ```cmd
 # Called from Claude - automatically uses Claude preset
@@ -63,14 +76,6 @@ toasty "Query done" --app gemini
 Toasty can automatically configure AI CLI agents to show notifications when tasks complete.
 
 > 📖 **Want more control?** See [HOOKS.md](HOOKS.md) for all available hook events (permission requests, errors, session lifecycle, etc.)
-
-### Supported Agents
-
-| Agent | Config Path | Hook Event | Scope |
-|-------|-------------|------------|-------|
-| Claude Code | `~/.claude/settings.json` | `Stop` | User |
-| Gemini CLI | `~/.gemini/settings.json` | `AfterAgent` | User |
-| GitHub Copilot | `.github/hooks/toasty.json` | `sessionEnd` | Repo |
 
 ### Auto-Install
 
