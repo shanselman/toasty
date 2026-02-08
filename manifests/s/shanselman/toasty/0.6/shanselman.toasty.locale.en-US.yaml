@@ -1,0 +1,52 @@
+PackageIdentifier: shanselman.toasty
+PackageVersion: 0.6
+PackageLocale: en-US
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0
+Publisher: Scott Hanselman
+PublisherUrl: https://github.com/shanselman
+PublisherSupportUrl: https://github.com/shanselman/toasty/issues
+PackageName: Toasty
+PackageUrl: https://github.com/shanselman/toasty
+License: MIT
+LicenseUrl: https://github.com/shanselman/toasty/blob/main/LICENSE
+ShortDescription: A tiny Windows toast notification CLI that knows how to hook into Coding Agents
+Description: |-
+  Toasty is a lightweight Windows toast notification CLI tool that integrates with AI coding agents.
+  It provides desktop notifications when long-running agent tasks complete, with built-in support
+  for Claude Code, GitHub Copilot, Gemini CLI, OpenAI Codex, and Cursor. Features include automatic
+  agent detection, one-click hook installation, push notifications via ntfy.sh, and automatic
+  update checking. At just 229 KB with no dependencies, Toasty auto-registers on first run and
+  supports both x64 and ARM64 architectures.
+Moniker: toasty
+Tags:
+  - cli
+  - notifications
+  - toast
+  - windows
+  - ai-agents
+  - copilot
+  - claude
+  - gemini
+  - coding-agents
+ReleaseNotes: |-
+  ## What's New in v0.6
+
+  ### 🔔 Push Notifications via ntfy.sh
+  Get notified on your phone when AI agents finish! Set TOASTY_NTFY_TOPIC to enable push notifications via ntfy.sh. Supports self-hosted servers via TOASTY_NTFY_SERVER.
+
+  ### 📦 Codex --install Support
+  toasty --install codex configures OpenAI Codex CLI to send toast notifications on task completion. Writes the notify array to ~/.codex/config.toml.
+
+  ### 🔄 Version Check & Update Notifications
+  Toasty now checks GitHub Releases for updates (once per day, non-blocking). When a newer version is available, you'll see a message in stderr and a clickable toast linking to the download.
+
+  ### 🧪 Test Harness & CI
+  - --dry-run flag — outputs what toasty would do without side effects
+  - 26 automated tests covering args, presets, XML, install/uninstall, and ntfy
+  - GitHub Actions CI runs on every push and PR
+
+  ### 📋 Agent Support Matrix
+  README now includes a table showing supported AI agents and their hook/install capabilities.
+ReleaseNotesUrl: https://github.com/shanselman/toasty/releases/tag/v0.6
+ManifestVersion: 1.9.0
