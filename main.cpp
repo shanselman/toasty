@@ -843,6 +843,17 @@ std::wstring get_exe_path() {
     return std::wstring(exePath);
 }
 
+// Convert backslashes to forward slashes for cross-shell compatibility.
+// Claude Code and Gemini CLI execute hook commands via bash (Git Bash / MSYS2
+// on Windows). Unquoted backslashes in bash are escape characters, so a path
+// like D:\app\toasty\toasty.exe is mangled to D:apptoastytoasty.exe.
+// Forward slashes are accepted by Windows APIs and safe in bash.
+std::wstring normalize_path_for_shell(const std::wstring& path) {
+    std::wstring result = path;
+    std::replace(result.begin(), result.end(), L'\\', L'/');
+    return result;
+}
+
 // Expand environment variables in a path
 std::wstring expand_env(const std::wstring& path) {
     wchar_t expanded[MAX_PATH];
@@ -994,8 +1005,8 @@ bool install_claude(const std::wstring& exePath) {
     JsonObject innerHook;
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
 
-    std::wstring escapedPath = escape_json_string(exePath);
-    std::wstring command = escapedPath + L" \"Task complete\" -t \"Claude Code\"";
+    std::wstring shellPath = normalize_path_for_shell(exePath);
+    std::wstring command = shellPath + L" \"Task complete\" -t \"Claude Code\"";
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
     innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
 
@@ -1052,8 +1063,8 @@ bool install_gemini(const std::wstring& exePath) {
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
     innerHook.SetNamedValue(L"name", JsonValue::CreateStringValue(L"toasty-notification"));
 
-    std::wstring escapedPath = escape_json_string(exePath);
-    std::wstring command = escapedPath + L" \"Gemini finished\" -t \"Gemini\"";
+    std::wstring shellPath = normalize_path_for_shell(exePath);
+    std::wstring command = shellPath + L" \"Gemini finished\" -t \"Gemini\"";
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
 
     JsonArray innerHooks;
@@ -1516,15 +1527,15 @@ void handle_install(const std::wstring& agent) {
         if (installClaude) {
             std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
             std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
-            std::wstring escapedPath = escape_json_string(exePath);
-            std::wcout << L"[dry-run] Hook command: " << escapedPath << L" \"Task complete\" -t \"Claude Code\"\n";
+            std::wstring shellPath = normalize_path_for_shell(exePath);
+            std::wcout << L"[dry-run] Hook command: " << shellPath << L" \"Task complete\" -t \"Claude Code\"\n";
             std::wcout << L"[dry-run] Hook type: Stop\n";
         }
         if (installGemini) {
             std::wstring configPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");
             std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
-            std::wstring escapedPath = escape_json_string(exePath);
-            std::wcout << L"[dry-run] Hook command: " << escapedPath << L" \"Gemini finished\" -t \"Gemini\"\n";
+            std::wstring shellPath = normalize_path_for_shell(exePath);
+            std::wcout << L"[dry-run] Hook command: " << shellPath << L" \"Gemini finished\" -t \"Gemini\"\n";
             std::wcout << L"[dry-run] Hook type: AfterAgent\n";
         }
         if (installCopilot) {
