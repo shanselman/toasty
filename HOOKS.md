@@ -153,7 +153,7 @@ Location: `~/.gemini/settings.json`
 
 ## GitHub Copilot CLI Hooks
 
-Location: `.github/hooks/*.json` (per-repo)
+Location: `.github/hooks/*.json` (per-repo) or `~/.copilot/hooks/*.json` (user-global, loaded for every repo). On Windows the global path is `%USERPROFILE%\.copilot\hooks\toasty.json`.
 
 | Event | Description | Notification Ideas |
 |-------|-------------|-------------------|
@@ -173,8 +173,16 @@ Location: `.github/hooks/*.json` (per-repo)
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "toasty 'Copilot finished'",
-        "powershell": "toasty.exe 'Copilot finished'",
+        "bash": "toasty --copilot-hook end",
+        "powershell": "toasty.exe --copilot-hook end",
+        "timeoutSec": 5
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "toasty --copilot-hook prompt",
+        "powershell": "toasty.exe --copilot-hook prompt",
         "timeoutSec": 5
       }
     ],
@@ -189,6 +197,55 @@ Location: `.github/hooks/*.json` (per-repo)
   }
 }
 ```
+
+### Rich notifications via `--copilot-hook`
+
+`toasty --install copilot` installs three hooks (`sessionEnd`,
+`userPromptSubmitted`, and `postToolUse`) that invoke toasty in a special mode
+where it reads the JSON Copilot pipes to stdin and builds a richer toast:
+
+- The user prompt is captured on `userPromptSubmitted` and cached per-cwd
+  under `%LOCALAPPDATA%\toasty\copilot-prompts\`.
+- `sessionEnd` reads `reason` + `cwd` from stdin, looks up the cached prompt,
+  and shows e.g. `GitHub Copilot — "Refactor the auth module" - myrepo`. The
+  title varies by `reason` (`complete`, `timeout`, `error`, `abort`,
+  `user_exit`).
+- `postToolUse` arms a debounced **idle watchdog**: every tool call refreshes
+  a timer; when no new tool fires for `TOASTY_COPILOT_IDLE_SEC` seconds
+  (default 6), a detached watchdog process emits a `GitHub Copilot - ready`
+  toast. This is the workaround for Copilot CLI not emitting any per-turn
+  completion hook (see [issue #1128](https://github.com/github/copilot-cli/issues/1128)).
+  Submitting a new prompt or ending the session cancels the pending toast.
+- The cache file is deleted after read, and stale entries (>24h) are swept on
+  the next write.
+- If stdin is empty (e.g. you ran the command manually) toasty falls back to a
+  generic message instead of hanging.
+- **Session name in the title.** When the hook payload includes a `sessionId`
+  (newer Copilot CLI builds), toasty reads
+  `%USERPROFILE%\.copilot\session-state\<id>\workspace.yaml` and uses the
+  `name` field (falling back to `summary`, then `repository`) so toasts read
+  e.g. `GitHub Copilot - my-cool-session` or
+  `GitHub Copilot - my-cool-session (failed)`. If no `sessionId` is provided
+  the title stays as `GitHub Copilot`.
+
+### Per-repo vs. global install
+
+Copilot CLI loads hooks from two places:
+
+- `.github/hooks/*.json` — per-repo, only active in that repository.
+- `~/.copilot/hooks/*.json` — user-global, active in every directory you run
+  Copilot CLI from. On Windows this is `%USERPROFILE%\.copilot\hooks\toasty.json`.
+
+`toasty --install copilot` writes the per-repo file. Add `--global` to write
+the user-global file instead:
+
+```powershell
+toasty --install copilot --global
+```
+
+Both are independent — you can install one or both. `toasty --uninstall`
+removes hooks from both locations and `toasty --status` reports each one
+separately.
 
 ### Hook Payloads
 

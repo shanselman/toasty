@@ -26,6 +26,7 @@ Options:
   -v, --version        Show version and exit
   -h, --help           Show this help
   --install [agent]    Install hooks for AI CLI agents (claude, gemini, copilot, or all)
+  --global             With --install copilot: install user-global hook (~/.copilot/hooks/) instead of per-repo
   --uninstall          Remove hooks from all AI CLI agents
   --status             Show installation status
   --dry-run            Show what would happen without executing side effects
@@ -36,7 +37,7 @@ Options:
 | Agent | Icon | Auto-Detect | `--install` | Hook Type | Config Location |
 |-------|:----:|:-----------:|:-----------:|-----------|-----------------|
 | Claude Code | ✅ | ✅ | ✅ | `Stop` | `~/.claude/settings.json` |
-| GitHub Copilot | ✅ | ✅ | ✅ | `sessionEnd` | `.github/hooks/toasty.json` |
+| GitHub Copilot | ✅ | ✅ | ✅ | `sessionEnd` | `.github/hooks/toasty.json` (repo) or `~/.copilot/hooks/toasty.json` (global, via `--global`) |
 | Gemini CLI | ✅ | ✅ | ✅ | `AfterAgent` | `~/.gemini/settings.json` |
 | OpenAI Codex | ✅ | ✅ | ✅ | `notify` | `~/.codex/config.toml` |
 
@@ -84,6 +85,7 @@ toasty --install
 toasty --install claude
 toasty --install gemini
 toasty --install copilot
+toasty --install copilot --global   # install once for all repos (~/.copilot/hooks/)
 
 # Check what's installed
 toasty --status
@@ -157,7 +159,8 @@ Add to `~/.gemini/settings.json`:
 
 ### GitHub Copilot
 
-Add to `.github/hooks/toasty.json`:
+Add to `.github/hooks/toasty.json` (per-repo) **or** `~/.copilot/hooks/toasty.json`
+(user-global, applies in every directory you run Copilot CLI from):
 
 ```json
 {
@@ -166,14 +169,85 @@ Add to `.github/hooks/toasty.json`:
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "toasty 'Copilot finished'",
-        "powershell": "toasty.exe 'Copilot finished'",
+        "bash": "toasty --copilot-hook end",
+        "powershell": "toasty.exe --copilot-hook end",
+        "timeoutSec": 5
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "toasty --copilot-hook prompt",
+        "powershell": "toasty.exe --copilot-hook prompt",
         "timeoutSec": 5
       }
     ]
   }
 }
 ```
+
+When installed via `toasty --install copilot`, three hooks are configured:
+`sessionEnd`, `userPromptSubmitted`, **and `postToolUse`** at the repo level
+(`.github/hooks/toasty.json`). Pass `--global` to install once for your entire
+user account (`~/.copilot/hooks/toasty.json`, which on Windows is
+`%USERPROFILE%\.copilot\hooks\toasty.json`) so you get notifications regardless
+of which directory you launch Copilot CLI from. `toasty --uninstall` removes
+both locations.
+
+Pass `--no-session-end` if you don't want a toast when sessions end (`/exit`
+or Ctrl+C) — only the per-turn idle watchdog and the silent prompt-cache
+hooks will be installed. Re-running with the flag also strips a previously
+installed `sessionEnd` entry; re-running without it restores it.
+
+### Per-turn idle notifications (workaround)
+
+Copilot CLI does **not** emit a hook when a single turn completes within an
+interactive session — `sessionEnd` only fires on `/exit` or Ctrl+C. As a
+workaround, toasty installs a `postToolUse` hook that arms a debounced **idle
+watchdog**: every tool call refreshes a "fire toast in N seconds" timer. If
+Copilot stops calling tools for N seconds, you get a toast like:
+
+> *GitHub Copilot - my-cool-session (ready) - "Refactor the auth module" - myrepo*
+
+Tunable via `TOASTY_COPILOT_IDLE_SEC` (default 6 seconds, range 1-3600).
+The watchdog auto-cancels when you submit your next prompt or exit the
+session. Caveat: turns where Copilot replies without using any tool won't
+trigger it. Track upstream issue
+[`github/copilot-cli#1128`](https://github.com/github/copilot-cli/issues/1128)
+for a proper `awaitingUserInput` hook.
+
+When the hook payload includes a `sessionId` (newer Copilot CLI builds),
+toasty reads `~/.copilot/session-state/<id>/workspace.yaml` and weaves the
+session `name` (or `summary`) into the toast title — handy for
+distinguishing notifications from multiple concurrent Copilot sessions.
+
+**Click to focus the terminal.** Toasts emitted by toasty embed the
+terminal window's HWND in the activation URL
+(`toasty://focus?hwnd=<n>`). Clicking the toast brings that exact window
+to the foreground — so even with several Copilot sessions running across
+different windows, each notification routes you back to the right one.
+For the per-turn idle watchdog, the HWND is captured at hook time (while
+Copilot is still your direct child) and stashed in the pending record so
+the detached watchdog can pass it to the toast.
+
+> Caveat for Windows Terminal users with multiple tabs in one window:
+> only the *window* can be focused, not the specific tab inside it. WT
+> doesn't expose a public API for cross-process tab targeting. If you
+> switch tabs after starting a Copilot session, the click will land on
+> whatever tab is currently active in that window.
+
+The `--copilot-hook` modes read the JSON payload Copilot pipes to
+stdin (`cwd`, `reason`, `prompt`, `sessionId`), so the toast that fires at
+session end shows your task and folder, e.g.:
+
+- *GitHub Copilot - my-cool-session — "Refactor the auth module" - myrepo*
+- *GitHub Copilot - my-cool-session (timed out)*
+- *GitHub Copilot - failed* (when no `sessionId` present)
+
+The `userPromptSubmitted` hook silently caches the latest prompt per-cwd
+under `%LOCALAPPDATA%\toasty\copilot-prompts\` so `sessionEnd` can show it.
+Cached prompts are deleted on read and any leftovers older than 24 hours are
+swept on the next prompt.
 
 ## Push Notifications (ntfy)
 
