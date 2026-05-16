@@ -52,6 +52,17 @@ function Assert-OutputNotContains {
     return $true
 }
 
+function Assert-Condition {
+    param([string]$Name, [bool]$Condition, [string]$Message)
+    if (-not $Condition) {
+        $script:failed++
+        $script:errors += "FAIL: $Name ($Message)"
+        Write-Host "  FAIL: $Name ($Message)" -ForegroundColor Red
+        return $false
+    }
+    return $true
+}
+
 function Pass {
     param([string]$Name)
     $script:passed++
@@ -252,6 +263,33 @@ if ((Assert-ExitCode "install codex exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "install codex path" $r.Stdout "config.toml") -and
     (Assert-OutputContains "install codex hook" $r.Stdout "Hook type: notify")) {
     Pass "install codex --dry-run"
+}
+
+# Install codex writes notify as top-level key
+$tempProfile = Join-Path $env:TEMP ("toasty-test-" + [Guid]::NewGuid().ToString("N"))
+try {
+    New-Item -ItemType Directory -Path (Join-Path $tempProfile ".codex") -Force | Out-Null
+    @"
+[windows]
+sandbox = "unelevated"
+"@ | Set-Content -Path (Join-Path $tempProfile ".codex\config.toml")
+
+    $r = Run-Toasty -Arguments @("--install", "codex") -Env @{ USERPROFILE = $tempProfile }
+    $config = Get-Content -Raw (Join-Path $tempProfile ".codex\config.toml")
+    $notifyIndex = $config.IndexOf("notify = [")
+    $windowsIndex = $config.IndexOf("[windows]")
+
+    if ((Assert-ExitCode "install codex real exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "install codex has notify" ($notifyIndex -ge 0) "missing notify key") -and
+        (Assert-Condition "install codex keeps windows section" ($windowsIndex -ge 0) "missing [windows] section") -and
+        (Assert-Condition "install codex notify top-level order" ($notifyIndex -lt $windowsIndex) "notify should be before [windows]")) {
+        Pass "install codex writes top-level notify"
+    }
+}
+finally {
+    if (Test-Path $tempProfile) {
+        Remove-Item -Path $tempProfile -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Install all (no agent specified)
