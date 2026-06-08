@@ -2,10 +2,12 @@
 
 This document explains how to submit Toasty to the official [winget-pkgs](https://github.com/microsoft/winget-pkgs) repository.
 
+**Important:** The official winget package must be submitted to and maintained in [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), not this repository. The `manifests-example/` directory contains reference manifests only.
+
 ## Prerequisites
 
 - A GitHub account
-- Fork of the [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) repository
+- Fork of the [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) repository (for sparse-fork PR workflow)
 
 ## Submission Process
 
@@ -15,7 +17,7 @@ Visit https://github.com/microsoft/winget-pkgs and click "Fork" to create your o
 
 ### 2. Copy the Manifest Files
 
-Copy the entire `manifests/s/shanselman/toasty/0.6/` directory from this repository to your fork of winget-pkgs at the same path:
+Copy the entire `manifests-example/s/shanselman/toasty/0.6/` directory from this repository to your fork of winget-pkgs at the same path (rename to `manifests/`):
 
 ```
 winget-pkgs/
@@ -35,6 +37,11 @@ Install the [winget client](https://learn.microsoft.com/en-us/windows/package-ma
 
 ```cmd
 winget validate --manifest manifests/s/shanselman/toasty/0.6/
+```
+
+Expected output:
+```
+Manifest validation succeeded.
 ```
 
 You can also test the installation locally:

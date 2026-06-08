@@ -49,4 +49,3 @@ ReleaseNotes: |-
   ### 📋 Agent Support Matrix
   README now includes a table showing supported AI agents and their hook/install capabilities.
 ReleaseNotesUrl: https://github.com/shanselman/toasty/releases/tag/v0.6
-ManifestVersion: 1.9.0
