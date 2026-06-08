@@ -32,7 +32,7 @@ namespace fs = std::filesystem;
 const wchar_t* APP_ID = L"Toasty.CLI.Notification";
 const wchar_t* APP_NAME = L"Toasty";
 const wchar_t* PROTOCOL_NAME = L"toasty";
-const wchar_t* TOASTY_VERSION = L"0.6";
+const wchar_t* TOASTY_VERSION = L"0.7";
 
 // Global flags
 bool g_dryRun = false;
