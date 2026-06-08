@@ -2,15 +2,53 @@
 
 <img src="icons/toasty.png" alt="Toasty mascot" width="128" align="right">
 
-A tiny Windows toast notification CLI that knows how to hook into Coding Agents so you get notified when their long running tasks are finished. 229 KB, no dependencies.
+A tiny toast notification CLI for **Windows** and **macOS** that hooks into Coding Agents so you get notified when their long running tasks are finished.
+
+- **Windows**: 229 KB, no dependencies
+- **macOS**: Requires `terminal-notifier` (installable via Homebrew)
 
 ## Quick Start
 
-```cmd
+```bash
 toasty "Hello World" -t "Toasty"
 ```
 
-That's it. Toasty auto-registers on first run.
+That's it. On Windows, Toasty auto-registers on first run.
+
+## Installation
+
+### Windows
+
+Download `toasty-x64.exe` or `toasty-arm64.exe` from [Releases](../../releases).
+
+### macOS
+
+1. **Download toasty** from [Releases](../../releases):
+   - `toasty-macos` - Universal binary (Intel + Apple Silicon)
+   - `toasty-macos-x64` - Intel Macs only
+   - `toasty-macos-arm64` - Apple Silicon only
+
+2. **Make it executable and move to PATH**:
+   ```bash
+   chmod +x toasty-macos
+   sudo mv toasty-macos /usr/local/bin/toasty
+   ```
+
+3. **Install terminal-notifier** (required for notifications):
+   ```bash
+   brew install terminal-notifier
+   ```
+
+4. **Enable notifications**:
+   - Open **System Settings → Notifications**
+   - Find **terminal-notifier** in the list
+   - Enable **Allow Notifications**
+   - Set notification style to **Banners** or **Alerts**
+
+   > **Note**: If terminal-notifier doesn't appear in the list, run it once:
+   > ```bash
+   > open /opt/homebrew/Cellar/terminal-notifier/*/terminal-notifier.app
+   > ```
 
 ## Usage
 
@@ -50,7 +88,12 @@ Options:
 
 Toasty automatically detects when it's called from a known AI CLI tool and applies the appropriate icon and title. No flags needed!
 
-```cmd
+**Auto-detected tools:**
+- Claude Code
+- GitHub Copilot
+- Google Gemini CLI
+
+```bash
 # Called from Claude - automatically uses Claude preset
 toasty "Analysis complete"
 
@@ -62,7 +105,7 @@ toasty "Code review done"
 
 Override auto-detection with `--app`:
 
-```cmd
+```bash
 toasty "Processing finished" --app claude
 toasty "Build succeeded" --app copilot
 toasty "Query done" --app gemini
@@ -76,7 +119,7 @@ Toasty can automatically configure AI CLI agents to show notifications when task
 
 ### Auto-Install
 
-```cmd
+```bash
 # Install for all detected agents
 toasty --install
 
@@ -115,6 +158,7 @@ If you prefer to configure hooks manually:
 
 Add to `~/.claude/settings.json`:
 
+**Windows:**
 ```json
 {
   "hooks": {
@@ -133,10 +177,30 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
+**macOS:**
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/toasty \"Claude finished\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### Gemini CLI
 
 Add to `~/.gemini/settings.json`:
 
+**Windows:**
 ```json
 {
   "hooks": {
@@ -146,6 +210,25 @@ Add to `~/.gemini/settings.json`:
           {
             "type": "command",
             "command": "C:\\path\\to\\toasty.exe \"Gemini finished\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**macOS:**
+```json
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/toasty \"Gemini finished\"",
             "timeout": 5000
           }
         ]
@@ -235,6 +318,8 @@ toasty --version
 
 ## Building
 
+### Windows
+
 Requires Visual Studio 2022 with C++ workload.
 
 ```cmd
@@ -243,6 +328,22 @@ cmake --build build --config Release
 ```
 
 Output: `build\Release\toasty.exe`
+
+### macOS
+
+Requires Xcode Command Line Tools.
+
+```bash
+clang++ -std=c++20 -x objective-c++ -framework Foundation -framework AppKit -o build/toasty main_mac.mm
+```
+
+Or with CMake:
+```bash
+cmake -S . -B build
+cmake --build build --config Release
+```
+
+Output: `build/toasty`
 
 ## Testing
 
