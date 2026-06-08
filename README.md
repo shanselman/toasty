@@ -4,6 +4,36 @@
 
 A tiny Windows toast notification CLI that knows how to hook into Coding Agents so you get notified when their long running tasks are finished. 229 KB, no dependencies.
 
+## Installation
+
+### PowerShell (recommended)
+
+```powershell
+irm https://raw.githubusercontent.com/shanselman/toasty/main/install.ps1 | iex
+```
+
+### Git Bash / WSL
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shanselman/toasty/main/install.sh | bash
+```
+
+Both scripts:
+- Download the latest signed release for your architecture (x64 or ARM64)
+- Verify integrity: Authenticode signature (PowerShell) or SHA256 checksum from release assets with HTTPS fallback (bash)
+- Install to `~/.toasty` and add it to your `PATH`
+- Support upgrades — re-run anytime to update
+
+To install a specific version set `$toastyVersion` (PowerShell) or `TOASTY_VERSION` (bash) before running:
+
+```powershell
+$toastyVersion = "v0.6"; irm https://raw.githubusercontent.com/shanselman/toasty/main/install.ps1 | iex
+```
+
+```bash
+TOASTY_VERSION=v0.6 curl -fsSL https://raw.githubusercontent.com/shanselman/toasty/main/install.sh | bash
+```
+
 ## Quick Start
 
 ```cmd
