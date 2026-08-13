@@ -10,19 +10,19 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Build x64
         run: |
-          cmake -S . -B build-x64 -G "Visual Studio 17 2022" -A x64
+          cmake -S . -B build-x64 -G "Visual Studio 18 2026" -A x64
           cmake --build build-x64 --config Release
 
       - name: Build ARM64
         run: |
-          cmake -S . -B build-arm64 -G "Visual Studio 17 2022" -A ARM64
+          cmake -S . -B build-arm64 -G "Visual Studio 18 2026" -A ARM64
           cmake --build build-arm64 --config Release
 
       - name: Azure Login
