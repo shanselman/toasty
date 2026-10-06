@@ -92,6 +92,8 @@ toasty --status
 toasty --uninstall
 ```
 
+For Claude Code, these commands use `CLAUDE_CONFIG_DIR` if it is set, otherwise `~/.claude`. If you run Claude Code with a custom `CLAUDE_CONFIG_DIR`, set the same value when running `toasty --install claude`.
+
 ### Example Output
 
 ```
