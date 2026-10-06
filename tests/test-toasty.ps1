@@ -235,8 +235,62 @@ $r = Run-Toasty @("--install", "claude", "--dry-run")
 if ((Assert-ExitCode "install claude exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "install claude target" $r.Stdout "Install targets: claude") -and
     (Assert-OutputContains "install claude path" $r.Stdout "settings.json") -and
-    (Assert-OutputContains "install claude hook" $r.Stdout "Hook type: Stop")) {
+    (Assert-OutputContains "install claude hook" $r.Stdout "Hook type: Stop") -and
+    (Assert-OutputContains "install claude timeout" $r.Stdout "Hook timeout: 5 seconds")) {
     Pass "install claude --dry-run"
+}
+
+# Install claude config cases
+$tempDir = Join-Path $env:TEMP ("toasty-test-" + [Guid]::NewGuid().ToString("N"))
+try {
+    New-Item -ItemType Directory -Path (Join-Path $tempDir ".claude") -Force | Out-Null
+    $configPath = Join-Path $tempDir ".claude\settings.json"
+
+    function Get-StopHooks {
+        $settings = Get-Content -Raw $configPath | ConvertFrom-Json
+        return @($settings.hooks.Stop | ForEach-Object { $_.hooks })
+    }
+
+    # Fresh install writes the timeout in seconds
+    $r = Run-Toasty -Arguments @("--install", "claude") -Env @{ USERPROFILE = $tempDir }
+    $toastyHooks = @(Get-StopHooks | Where-Object { $_.command -like "*toasty*" })
+    if ((Assert-ExitCode "install claude fresh exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "install claude fresh one hook" ($toastyHooks.Count -eq 1) "expected one toasty Stop hook") -and
+        (Assert-Condition "install claude fresh timeout" ($toastyHooks[0].timeout -eq 5) "timeout should be 5 seconds, got $($toastyHooks[0].timeout)")) {
+        Pass "install claude writes timeout in seconds"
+    }
+
+    # Re-install fixes toasty's 5000 timeout and leaves other hooks alone
+    [System.IO.File]::WriteAllText($configPath, @"
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\"","timeout":5000}]},{"hooks":[{"type":"command","command":"other-tool.exe","timeout":5000}]}]}}
+"@, [System.Text.UTF8Encoding]::new($false))
+    $r = Run-Toasty -Arguments @("--install", "claude") -Env @{ USERPROFILE = $tempDir }
+    $stopHooks = Get-StopHooks
+    $toastyHooks = @($stopHooks | Where-Object { $_.command -like "*toasty*" })
+    $otherHooks = @($stopHooks | Where-Object { $_.command -eq "other-tool.exe" })
+    if ((Assert-ExitCode "install claude fix exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "install claude fix no duplicate" ($toastyHooks.Count -eq 1) "expected one toasty Stop hook, got $($toastyHooks.Count)") -and
+        (Assert-Condition "install claude fix timeout" ($toastyHooks[0].timeout -eq 5) "5000 should become 5, got $($toastyHooks[0].timeout)") -and
+        (Assert-Condition "install claude fix other hook" ($otherHooks.Count -eq 1 -and $otherHooks[0].timeout -eq 5000) "non-toasty hook should keep its timeout")) {
+        Pass "install claude fixes a 5000 timeout on an existing toasty hook"
+    }
+
+    # Re-install keeps a timeout the user chose
+    [System.IO.File]::WriteAllText($configPath, @"
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\"","timeout":30}]}]}}
+"@, [System.Text.UTF8Encoding]::new($false))
+    $before = Get-Content -Raw $configPath
+    $r = Run-Toasty -Arguments @("--install", "claude") -Env @{ USERPROFILE = $tempDir }
+    $after = Get-Content -Raw $configPath
+    if ((Assert-ExitCode "install claude keep exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "install claude keep unchanged" ($before -eq $after) "settings.json should be unchanged")) {
+        Pass "install claude keeps a user-chosen timeout"
+    }
+}
+finally {
+    if (Test-Path $tempDir) {
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Install gemini
