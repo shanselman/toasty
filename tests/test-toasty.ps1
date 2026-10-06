@@ -72,7 +72,8 @@ function Pass {
 function Run-Toasty {
     param(
         [string[]]$Arguments,
-        [hashtable]$Env = @{}
+        [hashtable]$Env = @{},
+        [string]$WorkingDirectory = ""
     )
     
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -89,6 +90,10 @@ function Run-Toasty {
         $psi.EnvironmentVariables[$key] = $Env[$key]
     }
     
+    if ($WorkingDirectory) {
+        $psi.WorkingDirectory = $WorkingDirectory
+    }
+
     $proc = [System.Diagnostics.Process]::Start($psi)
     $stdout = $proc.StandardOutput.ReadToEnd()
     $stderr = $proc.StandardError.ReadToEnd()
@@ -413,6 +418,45 @@ if ((Assert-ExitCode "install all exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "install all copilot" $r.Stdout "copilot") -and
     (Assert-OutputContains "install all codex" $r.Stdout "codex")) {
     Pass "install all --dry-run"
+}
+
+# Uninstall keeps other hooks that share a group with toasty's
+$tempDir = Join-Path $env:TEMP ("toasty-test-" + [Guid]::NewGuid().ToString("N"))
+try {
+    New-Item -ItemType Directory -Path (Join-Path $tempDir ".claude") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $tempDir ".gemini") -Force | Out-Null
+    $claudePath = Join-Path $tempDir ".claude\settings.json"
+    $geminiPath = Join-Path $tempDir ".gemini\settings.json"
+
+    function ConvertTo-CompactJson {
+        param([string]$Json)
+        return ($Json | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 10)
+    }
+
+    [System.IO.File]::WriteAllText($claudePath, @"
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\""},{"type":"command","command":"my-logger.exe stop"}]},{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Claude finished\""}]},{"hooks":[{"type":"command","command":"separate-group.exe"}]}]}}
+"@, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($geminiPath, @"
+{"hooks":{"AfterAgent":[{"matcher":"*","hooks":[{"type":"command","name":"toasty-notification","command":"C:/tools/toasty.exe \"Gemini finished\" -t \"Gemini\""},{"type":"command","name":"my-gemini-hook","command":"my-gemini-hook.exe"}]}]}}
+"@, [System.Text.UTF8Encoding]::new($false))
+
+    # Run from the temp dir: --uninstall also checks .github\hooks\toasty.json in the working directory
+    $r = Run-Toasty -Arguments @("--uninstall") -Env @{ USERPROFILE = $tempDir } -WorkingDirectory $tempDir
+    $claudeConfig = Get-Content -Raw $claudePath
+    $geminiConfig = Get-Content -Raw $geminiPath
+    $claudeExpected = '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"my-logger.exe stop"}]},{"hooks":[{"type":"command","command":"separate-group.exe"}]}]}}'
+    $geminiExpected = '{"hooks":{"AfterAgent":[{"matcher":"*","hooks":[{"type":"command","name":"my-gemini-hook","command":"my-gemini-hook.exe"}]}]}}'
+
+    if ((Assert-ExitCode "uninstall shared group exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "uninstall claude keeps other hooks" ((ConvertTo-CompactJson $claudeConfig) -eq (ConvertTo-CompactJson $claudeExpected)) "got $claudeConfig") -and
+        (Assert-Condition "uninstall gemini keeps other hooks" ((ConvertTo-CompactJson $geminiConfig) -eq (ConvertTo-CompactJson $geminiExpected)) "got $geminiConfig")) {
+        Pass "uninstall keeps other hooks that share a group with toasty's"
+    }
+}
+finally {
+    if (Test-Path $tempDir) {
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Uninstall

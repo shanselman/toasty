@@ -1394,19 +1394,30 @@ JsonArray remove_toasty_hooks(const JsonArray& hooks) {
                     isToasty = true;
                 }
             }
-            // Check nested hooks array (legacy format)
+            // Check nested hooks array (Claude Code and Gemini CLI format).
+            // A group can hold the user's own hooks alongside toasty's, so only
+            // toasty's entries are removed; the group goes only if nothing is left.
             if (!isToasty && hookObj.HasKey(L"hooks")) {
                 auto innerHooks = hookObj.GetNamedArray(L"hooks");
+                JsonArray keptHooks;
                 for (const auto& innerHook : innerHooks) {
+                    bool innerToasty = false;
                     if (innerHook.ValueType() == JsonValueType::Object) {
                         auto innerObj = innerHook.GetObject();
                         if (innerObj.HasKey(L"command")) {
                             std::wstring cmd = innerObj.GetNamedString(L"command").c_str();
-                            if (cmd.find(L"toasty") != std::wstring::npos) {
-                                isToasty = true;
-                                break;
-                            }
+                            innerToasty = cmd.find(L"toasty") != std::wstring::npos;
                         }
+                    }
+                    if (!innerToasty) {
+                        keptHooks.Append(innerHook);
+                    }
+                }
+                if (keptHooks.Size() < innerHooks.Size()) {
+                    if (keptHooks.Size() == 0) {
+                        isToasty = true;
+                    } else {
+                        hookObj.SetNamedValue(L"hooks", keptHooks);
                     }
                 }
             }
