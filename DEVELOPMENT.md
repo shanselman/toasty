@@ -178,7 +178,7 @@ With click-to-focus and icon:
       "hooks": [{
         "type": "command",
         "command": "D:\\path\\to\\toasty.exe \"Task complete\" -t \"Claude Code\"",
-        "timeout": 5000
+        "timeout": 5
       }]
     }]
   }

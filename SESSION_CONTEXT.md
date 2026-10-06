@@ -39,13 +39,13 @@ Protocol handlers run in a restricted context - Windows blocks random apps from 
       "hooks": [{
         "type": "command",
         "command": "D:\\path\\to\\toasty.exe \"Task complete\" -t \"Claude Code\"",
-        "timeout": 5000
+        "timeout": 5
       }]
     }]
   }
 }
 ```
-Note: Nested `hooks` array is required!
+Note: Nested `hooks` array is required! `timeout` is in seconds (Gemini CLI's is in milliseconds).
 
 ### Gemini CLI (`~/.gemini/settings.json`)
 ```json
