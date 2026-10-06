@@ -871,10 +871,20 @@ bool path_exists(const std::wstring& path) {
     return (attr != INVALID_FILE_ATTRIBUTES);
 }
 
+// Claude Code's config directory: CLAUDE_CONFIG_DIR if set, otherwise %USERPROFILE%\.claude
+std::wstring get_claude_dir() {
+    DWORD size = GetEnvironmentVariableW(L"CLAUDE_CONFIG_DIR", nullptr, 0);
+    if (size > 1) {
+        std::wstring dir(size - 1, L'\0');
+        GetEnvironmentVariableW(L"CLAUDE_CONFIG_DIR", &dir[0], size);
+        return dir;
+    }
+    return expand_env(L"%USERPROFILE%\\.claude");
+}
+
 // Agent detection functions
 bool detect_claude() {
-    std::wstring claudePath = expand_env(L"%USERPROFILE%\\.claude");
-    return path_exists(claudePath);
+    return path_exists(get_claude_dir());
 }
 
 bool detect_gemini() {
@@ -986,7 +996,7 @@ bool has_toasty_hook(const JsonArray& hooks) {
 
 // Install hook for Claude Code
 bool install_claude(const std::wstring& exePath) {
-    std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+    std::wstring configPath = get_claude_dir() + L"\\settings.json";
     
     JsonObject rootObj;
     std::string existingContent = read_file(configPath);
@@ -1302,7 +1312,7 @@ bool install_codex(const std::wstring& exePath) {
 
 // Check if Claude hook is installed
 bool is_claude_installed() {
-    std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+    std::wstring configPath = get_claude_dir() + L"\\settings.json";
     std::string content = read_file(configPath);
     if (content.empty()) return false;
     
@@ -1428,7 +1438,7 @@ JsonArray remove_toasty_hooks(const JsonArray& hooks) {
 
 // Uninstall hook for Claude Code
 bool uninstall_claude() {
-    std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+    std::wstring configPath = get_claude_dir() + L"\\settings.json";
     std::string existingContent = read_file(configPath);
     
     if (existingContent.empty()) {
@@ -1597,7 +1607,7 @@ void handle_install(const std::wstring& agent) {
         std::wcout << L"\n";
         
         if (installClaude) {
-            std::wstring configPath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+            std::wstring configPath = get_claude_dir() + L"\\settings.json";
             std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
             std::wstring shellPath = normalize_path_for_shell(exePath);
             std::wcout << L"[dry-run] Hook command: " << shellPath << L" \"Task complete\" -t \"Claude Code\"\n";
@@ -1689,7 +1699,7 @@ void handle_install(const std::wstring& agent) {
 void handle_uninstall() {
     if (g_dryRun) {
         std::wcout << L"[dry-run] Would check and remove hooks from:\n";
-        std::wstring claudePath = expand_env(L"%USERPROFILE%\\.claude\\settings.json");
+        std::wstring claudePath = get_claude_dir() + L"\\settings.json";
         std::wstring geminiPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");
         std::wstring codexPath = expand_env(L"%USERPROFILE%\\.codex\\config.toml");
         std::wcout << L"[dry-run]   Claude: " << claudePath << L"\n";
