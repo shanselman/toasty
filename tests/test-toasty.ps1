@@ -84,7 +84,10 @@ function Run-Toasty {
     $psi.RedirectStandardError = $true
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-    
+
+    # Keep tests away from the developer's own Claude Code config
+    $psi.EnvironmentVariables.Remove("CLAUDE_CONFIG_DIR")
+
     foreach ($key in $Env.Keys) {
         $psi.EnvironmentVariables[$key] = $Env[$key]
     }
@@ -423,6 +426,34 @@ if ((Assert-ExitCode "uninstall exits 0" 0 $r.ExitCode) -and
     (Assert-OutputContains "uninstall copilot" $r.Stdout "Copilot:") -and
     (Assert-OutputContains "uninstall codex" $r.Stdout "Codex:")) {
     Pass "uninstall --dry-run"
+}
+
+# CLAUDE_CONFIG_DIR
+$tempDir = Join-Path $env:TEMP ("toasty-test-" + [Guid]::NewGuid().ToString("N"))
+try {
+    $claudeDir = Join-Path $tempDir "claude-alt"
+    New-Item -ItemType Directory -Path $claudeDir -Force | Out-Null
+    $claudeEnv = @{ USERPROFILE = $tempDir; CLAUDE_CONFIG_DIR = $claudeDir }
+
+    $r = Run-Toasty -Arguments @("--install", "claude", "--dry-run") -Env $claudeEnv
+    if ((Assert-ExitCode "claude config dir dry-run exits 0" 0 $r.ExitCode) -and
+        (Assert-OutputContains "claude config dir dry-run path" $r.Stdout "$claudeDir\settings.json")) {
+        Pass "install claude --dry-run uses CLAUDE_CONFIG_DIR"
+    }
+
+    $r = Run-Toasty -Arguments @("--install", "claude") -Env $claudeEnv
+    $status = Run-Toasty -Arguments @("--status") -Env $claudeEnv
+    if ((Assert-ExitCode "claude config dir install exits 0" 0 $r.ExitCode) -and
+        (Assert-Condition "claude config dir settings written" (Test-Path (Join-Path $claudeDir "settings.json")) "settings.json should be in CLAUDE_CONFIG_DIR") -and
+        (Assert-Condition "claude config dir default untouched" (-not (Test-Path (Join-Path $tempDir ".claude"))) "~/.claude should not be created") -and
+        (Assert-Condition "claude config dir status" ($status.Stdout -match "Installed hooks:\s+\[x\] Claude Code") "--status should report the hook as installed")) {
+        Pass "install claude and --status use CLAUDE_CONFIG_DIR"
+    }
+}
+finally {
+    if (Test-Path $tempDir) {
+        Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================
