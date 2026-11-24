@@ -260,19 +260,22 @@ try {
         Pass "install claude writes timeout in seconds"
     }
 
-    # Re-install fixes toasty's 5000 timeout and leaves other hooks alone
+    # Re-install fixes toasty's 5000 timeout and leaves other hooks alone, including
+    # one in the same group whose command contains "toasty" but is not toasty.exe
     [System.IO.File]::WriteAllText($configPath, @"
-{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\"","timeout":5000}]},{"hooks":[{"type":"command","command":"other-tool.exe","timeout":5000}]}]}}
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\"","timeout":5000},{"type":"command","command":"C:/tools/my-toasty-logger.exe","timeout":5000}]},{"hooks":[{"type":"command","command":"other-tool.exe","timeout":5000}]}]}}
 "@, [System.Text.UTF8Encoding]::new($false))
     $r = Run-Toasty -Arguments @("--install", "claude") -Env @{ USERPROFILE = $tempDir }
     $stopHooks = Get-StopHooks
-    $toastyHooks = @($stopHooks | Where-Object { $_.command -like "*toasty*" })
+    $toastyHooks = @($stopHooks | Where-Object { $_.command -like "C:/tools/toasty.exe *" })
+    $loggerHooks = @($stopHooks | Where-Object { $_.command -eq "C:/tools/my-toasty-logger.exe" })
     $otherHooks = @($stopHooks | Where-Object { $_.command -eq "other-tool.exe" })
     if ((Assert-ExitCode "install claude fix exits 0" 0 $r.ExitCode) -and
         (Assert-Condition "install claude fix no duplicate" ($toastyHooks.Count -eq 1) "expected one toasty Stop hook, got $($toastyHooks.Count)") -and
         (Assert-Condition "install claude fix timeout" ($toastyHooks[0].timeout -eq 5) "5000 should become 5, got $($toastyHooks[0].timeout)") -and
+        (Assert-Condition "install claude fix toasty-named hook" ($loggerHooks.Count -eq 1 -and $loggerHooks[0].timeout -eq 5000) "my-toasty-logger.exe should keep its timeout, got $($loggerHooks.timeout)") -and
         (Assert-Condition "install claude fix other hook" ($otherHooks.Count -eq 1 -and $otherHooks[0].timeout -eq 5000) "non-toasty hook should keep its timeout")) {
-        Pass "install claude fixes a 5000 timeout on an existing toasty hook"
+        Pass "install claude fixes a 5000 timeout on toasty's hook only"
     }
 
     # Re-install keeps a timeout the user chose
