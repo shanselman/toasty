@@ -126,7 +126,7 @@ Add to `~/.claude/settings.json`:
           {
             "type": "command",
             "command": "C:\\path\\to\\toasty.exe \"Claude finished\"",
-            "timeout": 5000
+            "timeout": 5
           }
         ]
       }
@@ -134,6 +134,8 @@ Add to `~/.claude/settings.json`:
   }
 }
 ```
+
+Claude Code's `timeout` is in seconds. Gemini CLI's (below) is in milliseconds.
 
 ### Gemini CLI
 

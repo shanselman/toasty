@@ -994,6 +994,59 @@ bool has_toasty_hook(const JsonArray& hooks) {
     return false;
 }
 
+// Claude Code reads a hook's "timeout" in seconds (Gemini CLI reads milliseconds).
+const int CLAUDE_HOOK_TIMEOUT_SECONDS = 5;
+
+// What toasty's Claude Code hook passes after the executable path
+const std::wstring CLAUDE_HOOK_ARGUMENTS = L" \"Task complete\" -t \"Claude Code\"";
+
+// True if command is the one install_claude() writes using a known toasty
+// executable name followed by CLAUDE_HOOK_ARGUMENTS.
+bool is_toasty_claude_hook(const std::wstring& command) {
+    if (!command.ends_with(CLAUDE_HOOK_ARGUMENTS)) {
+        return false;
+    }
+    std::wstring path = command.substr(0, command.size() - CLAUDE_HOOK_ARGUMENTS.size());
+    size_t slash = path.find_last_of(L"/\\");
+    std::wstring fileName = to_lower((slash == std::wstring::npos) ? path : path.substr(slash + 1));
+    return fileName == L"toasty.exe" ||
+           fileName == L"toasty-x64.exe" ||
+           fileName == L"toasty-arm64.exe";
+}
+
+// Set the timeout of toasty's Claude Code hooks from 5000 to CLAUDE_HOOK_TIMEOUT_SECONDS.
+// 5000 is 5 seconds in Gemini CLI's milliseconds, but Claude Code reads it as
+// about 83 minutes. Any other timeout is the user's choice and is left alone,
+// as is every hook that is_toasty_claude_hook() does not recognise.
+// Returns true if any hook was changed.
+bool fix_toasty_hook_timeouts(const JsonArray& hooks) {
+    bool changed = false;
+    for (const auto& hookItem : hooks) {
+        if (hookItem.ValueType() == JsonValueType::Object) {
+            auto hookObj = hookItem.GetObject();
+            if (hookObj.HasKey(L"hooks")) {
+                auto innerHooks = hookObj.GetNamedArray(L"hooks");
+                for (const auto& innerHook : innerHooks) {
+                    if (innerHook.ValueType() == JsonValueType::Object) {
+                        auto innerObj = innerHook.GetObject();
+                        if (innerObj.HasKey(L"command") && innerObj.HasKey(L"timeout")) {
+                            std::wstring cmd = innerObj.GetNamedString(L"command").c_str();
+                            auto timeout = innerObj.GetNamedValue(L"timeout");
+                            if (is_toasty_claude_hook(cmd) &&
+                                timeout.ValueType() == JsonValueType::Number &&
+                                timeout.GetNumber() == 5000) {
+                                innerObj.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(CLAUDE_HOOK_TIMEOUT_SECONDS));
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return changed;
+}
+
 // Install hook for Claude Code
 bool install_claude(const std::wstring& exePath) {
     std::wstring configPath = get_claude_dir() + L"\\settings.json";
@@ -1016,9 +1069,9 @@ bool install_claude(const std::wstring& exePath) {
     innerHook.SetNamedValue(L"type", JsonValue::CreateStringValue(L"command"));
 
     std::wstring shellPath = normalize_path_for_shell(exePath);
-    std::wstring command = shellPath + L" \"Task complete\" -t \"Claude Code\"";
+    std::wstring command = shellPath + CLAUDE_HOOK_ARGUMENTS;
     innerHook.SetNamedValue(L"command", JsonValue::CreateStringValue(command));
-    innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(5000));
+    innerHook.SetNamedValue(L"timeout", JsonValue::CreateNumberValue(CLAUDE_HOOK_TIMEOUT_SECONDS));
 
     JsonArray innerHooks;
     innerHooks.Append(innerHook);
@@ -1037,7 +1090,12 @@ bool install_claude(const std::wstring& exePath) {
     if (hooksObj.HasKey(L"Stop")) {
         stopArray = hooksObj.GetNamedArray(L"Stop");
         if (has_toasty_hook(stopArray)) {
-            return true; // Already installed
+            if (!fix_toasty_hook_timeouts(stopArray)) {
+                return true; // Already installed
+            }
+            // The hook objects are edited in place, so rootObj already holds the fix
+            std::string jsonStr = from_hstring(rootObj.Stringify());
+            return write_file(configPath, jsonStr);
         }
     }
 
@@ -1621,8 +1679,9 @@ void handle_install(const std::wstring& agent) {
             std::wstring configPath = get_claude_dir() + L"\\settings.json";
             std::wcout << L"[dry-run] Would write: " << configPath << L"\n";
             std::wstring shellPath = normalize_path_for_shell(exePath);
-            std::wcout << L"[dry-run] Hook command: " << shellPath << L" \"Task complete\" -t \"Claude Code\"\n";
+            std::wcout << L"[dry-run] Hook command: " << shellPath << CLAUDE_HOOK_ARGUMENTS << L"\n";
             std::wcout << L"[dry-run] Hook type: Stop\n";
+            std::wcout << L"[dry-run] Hook timeout: " << CLAUDE_HOOK_TIMEOUT_SECONDS << L" seconds\n";
         }
         if (installGemini) {
             std::wstring configPath = expand_env(L"%USERPROFILE%\\.gemini\\settings.json");

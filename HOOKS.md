@@ -41,7 +41,7 @@ Location: `~/.claude/settings.json` (user) or `.claude/settings.json` (project)
           {
             "type": "command",
             "command": "toasty.exe \"Claude finished\"",
-            "timeout": 5000
+            "timeout": 5
           }
         ]
       }
@@ -52,7 +52,7 @@ Location: `~/.claude/settings.json` (user) or `.claude/settings.json` (project)
           {
             "type": "command",
             "command": "toasty.exe \"Claude needs approval\" -t \"Action Required\"",
-            "timeout": 5000
+            "timeout": 5
           }
         ]
       }
