@@ -278,6 +278,26 @@ try {
         Pass "install claude fixes a 5000 timeout on toasty's hook only"
     }
 
+    foreach ($exeName in @("toasty-x64.exe", "toasty-arm64.exe")) {
+        [System.IO.File]::WriteAllText($configPath, @"
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/$exeName \"Task complete\" -t \"Claude Code\"","timeout":5000},{"type":"command","command":"C:/custom/$exeName \"Task complete\" -t \"Claude Code\"","timeout":30},{"type":"command","command":"C:/tools/not-$exeName \"Task complete\" -t \"Claude Code\"","timeout":5000},{"type":"command","command":"C:/tools/$exeName \"Other task\" -t \"Claude Code\"","timeout":5000}]}]}}
+"@, [System.Text.UTF8Encoding]::new($false))
+        $r = Run-Toasty -Arguments @("--install", "claude") -Env @{ USERPROFILE = $tempDir }
+        $stopHooks = @(Get-StopHooks)
+        $releasedHooks = @($stopHooks | Where-Object { $_.command -eq "C:/tools/$exeName `"Task complete`" -t `"Claude Code`"" })
+        $customHooks = @($stopHooks | Where-Object { $_.command -eq "C:/custom/$exeName `"Task complete`" -t `"Claude Code`"" })
+        $lookalikeHooks = @($stopHooks | Where-Object { $_.command -eq "C:/tools/not-$exeName `"Task complete`" -t `"Claude Code`"" })
+        $otherHooks = @($stopHooks | Where-Object { $_.command -eq "C:/tools/$exeName `"Other task`" -t `"Claude Code`"" })
+        if ((Assert-ExitCode "install claude $exeName exits 0" 0 $r.ExitCode) -and
+            (Assert-Condition "install claude $exeName no duplicate" ($stopHooks.Count -eq 4 -and $releasedHooks.Count -eq 1) "expected the existing hooks without duplicates") -and
+            (Assert-Condition "install claude $exeName timeout" ($releasedHooks[0].timeout -eq 5) "5000 should become 5, got $($releasedHooks[0].timeout)") -and
+            (Assert-Condition "install claude $exeName custom timeout" ($customHooks.Count -eq 1 -and $customHooks[0].timeout -eq 30) "custom timeout should stay at 30") -and
+            (Assert-Condition "install claude $exeName lookalike" ($lookalikeHooks.Count -eq 1 -and $lookalikeHooks[0].timeout -eq 5000) "lookalike executable should keep its timeout") -and
+            (Assert-Condition "install claude $exeName other arguments" ($otherHooks.Count -eq 1 -and $otherHooks[0].timeout -eq 5000) "other arguments should keep their timeout")) {
+            Pass "install claude migrates $exeName without changing unrelated hooks"
+        }
+    }
+
     # Re-install keeps a timeout the user chose
     [System.IO.File]::WriteAllText($configPath, @"
 {"hooks":{"Stop":[{"hooks":[{"type":"command","command":"C:/tools/toasty.exe \"Task complete\" -t \"Claude Code\"","timeout":30}]}]}}

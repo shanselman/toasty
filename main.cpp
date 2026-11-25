@@ -987,20 +987,21 @@ bool has_toasty_hook(const JsonArray& hooks) {
 // Claude Code reads a hook's "timeout" in seconds (Gemini CLI reads milliseconds).
 const int CLAUDE_HOOK_TIMEOUT_SECONDS = 5;
 
-// What toasty's Claude Code hook passes after the path to toasty.exe
+// What toasty's Claude Code hook passes after the executable path
 const std::wstring CLAUDE_HOOK_ARGUMENTS = L" \"Task complete\" -t \"Claude Code\"";
 
-// True if command is the one install_claude() writes: a path to toasty.exe
-// followed by CLAUDE_HOOK_ARGUMENTS. A command that only contains "toasty",
-// such as my-toasty-logger.exe, belongs to someone else.
+// True if command is the one install_claude() writes using a known toasty
+// executable name followed by CLAUDE_HOOK_ARGUMENTS.
 bool is_toasty_claude_hook(const std::wstring& command) {
     if (!command.ends_with(CLAUDE_HOOK_ARGUMENTS)) {
         return false;
     }
     std::wstring path = command.substr(0, command.size() - CLAUDE_HOOK_ARGUMENTS.size());
     size_t slash = path.find_last_of(L"/\\");
-    std::wstring fileName = (slash == std::wstring::npos) ? path : path.substr(slash + 1);
-    return to_lower(fileName) == L"toasty.exe";
+    std::wstring fileName = to_lower((slash == std::wstring::npos) ? path : path.substr(slash + 1));
+    return fileName == L"toasty.exe" ||
+           fileName == L"toasty-x64.exe" ||
+           fileName == L"toasty-arm64.exe";
 }
 
 // Set the timeout of toasty's Claude Code hooks from 5000 to CLAUDE_HOOK_TIMEOUT_SECONDS.
